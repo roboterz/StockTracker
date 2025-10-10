@@ -547,7 +547,7 @@ fun AddOrEditTransactionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isEditMode) "编辑交易" else if (!isNewStockMode) stock.name else "模拟持仓") },
+                title = { Text(if (isEditMode) "编辑交易" else if (!isNewStockMode) stock.name else "添加持仓") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
