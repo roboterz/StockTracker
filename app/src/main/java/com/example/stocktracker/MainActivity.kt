@@ -443,7 +443,7 @@ fun PortfolioScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("陈明") },
+                title = { Text("Name") },
                 actions = {
                     IconButton(onClick = onAddClick) {
                         Icon(Icons.Default.Add, contentDescription = "添加持仓")
