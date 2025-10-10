@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 import kotlin.math.absoluteValue
 
 // --- 数据模型 (Data Models) ---
@@ -40,6 +41,7 @@ enum class TransactionType {
 
 // 交易记录
 data class Transaction(
+    val id: String = UUID.randomUUID().toString(),
     val date: LocalDate,
     val type: TransactionType,
     val quantity: Int,
@@ -87,9 +89,9 @@ object SampleData {
             ticker = "NASDAQ:TSLA",
             currentPrice = 223.52,
             transactions = listOf(
-                Transaction(LocalDate.of(2025, 9, 5), TransactionType.BUY, 10, 164.67),
-                Transaction(LocalDate.of(2025, 9, 9), TransactionType.BUY, 20, 167.48),
-                Transaction(LocalDate.of(2025, 9, 10), TransactionType.SELL, 5, 178.09)
+                Transaction(date = LocalDate.of(2025, 9, 5), type = TransactionType.BUY, quantity = 10, price = 164.67),
+                Transaction(date = LocalDate.of(2025, 9, 9), type = TransactionType.BUY, quantity = 20, price = 167.48),
+                Transaction(date = LocalDate.of(2025, 9, 10), type = TransactionType.SELL, quantity = 5, price = 178.09)
             )
         ),
         StockHolding(
@@ -98,8 +100,8 @@ object SampleData {
             ticker = "NASDAQ:SBET",
             currentPrice = 18.50,
             transactions = listOf(
-                Transaction(LocalDate.of(2025, 8, 1), TransactionType.BUY, 500, 25.40),
-                Transaction(LocalDate.of(2025, 8, 15), TransactionType.BUY, 100, 22.10)
+                Transaction(date = LocalDate.of(2025, 8, 1), type = TransactionType.BUY, quantity = 500, price = 25.40),
+                Transaction(date = LocalDate.of(2025, 8, 15), type = TransactionType.BUY, quantity = 100, price = 22.10)
             )
         ),
         StockHolding(
@@ -108,7 +110,7 @@ object SampleData {
             ticker = "NASDAQ:OPEN",
             currentPrice = 4.88,
             transactions = listOf(
-                Transaction(LocalDate.of(2025, 7, 20), TransactionType.BUY, 1000, 3.15)
+                Transaction(date = LocalDate.of(2025, 7, 20), type = TransactionType.BUY, quantity = 1000, price = 3.15)
             )
         ),
         StockHolding(
@@ -117,16 +119,16 @@ object SampleData {
             ticker = "NASDAQ:NVDA",
             currentPrice = 177.56,
             transactions = listOf(
-                Transaction(LocalDate.of(2025, 9, 4), TransactionType.BUY, 2, 170.67),
-                Transaction(LocalDate.of(2025, 9, 5), TransactionType.BUY, 2, 165.13),
-                Transaction(LocalDate.of(2025, 9, 5), TransactionType.BUY, 1, 164.67),
-                Transaction(LocalDate.of(2025, 9, 9), TransactionType.BUY, 2, 167.48),
-                Transaction(LocalDate.of(2025, 9, 10), TransactionType.SELL, 5, 178.09),
-                Transaction(LocalDate.of(2025, 9, 10), TransactionType.SELL, 2, 179.18),
-                Transaction(LocalDate.of(2025, 9, 10), TransactionType.SELL, 5, 177.33),
-                Transaction(LocalDate.of(2025, 9, 10), TransactionType.SELL, 5, 176.26),
-                Transaction(LocalDate.of(2025, 9, 11), TransactionType.DIVIDEND, 0, 0.01),
-                Transaction(LocalDate.of(2025, 9, 11), TransactionType.SELL, 5, 177.65),
+                Transaction(date = LocalDate.of(2025, 9, 4), type = TransactionType.BUY, quantity = 2, price = 170.67),
+                Transaction(date = LocalDate.of(2025, 9, 5), type = TransactionType.BUY, quantity = 2, price = 165.13),
+                Transaction(date = LocalDate.of(2025, 9, 5), type = TransactionType.BUY, quantity = 1, price = 164.67),
+                Transaction(date = LocalDate.of(2025, 9, 9), type = TransactionType.BUY, quantity = 2, price = 167.48),
+                Transaction(date = LocalDate.of(2025, 9, 10), type = TransactionType.SELL, quantity = 5, price = 178.09),
+                Transaction(date = LocalDate.of(2025, 9, 10), type = TransactionType.SELL, quantity = 2, price = 179.18),
+                Transaction(date = LocalDate.of(2025, 9, 10), type = TransactionType.SELL, quantity = 5, price = 177.33),
+                Transaction(date = LocalDate.of(2025, 9, 10), type = TransactionType.SELL, quantity = 5, price = 176.26),
+                Transaction(date = LocalDate.of(2025, 9, 11), type = TransactionType.DIVIDEND, quantity = 0, price = 0.01),
+                Transaction(date = LocalDate.of(2025, 9, 11), type = TransactionType.SELL, quantity = 5, price = 177.65),
             )
         )
     )
@@ -193,56 +195,72 @@ class MainActivity : ComponentActivity() {
 enum class Screen {
     Portfolio,
     Details,
-    AddTransaction
+    AddOrEditTransaction
 }
 
 @Composable
 fun StockApp() {
     var currentScreen by remember { mutableStateOf(Screen.Portfolio) }
     var selectedStock by remember { mutableStateOf<StockHolding?>(null) }
-    var holdings by remember { mutableStateOf(SampleData.holdings) } // State lifted here
+    var holdings by remember { mutableStateOf(SampleData.holdings) }
+    var transactionToEdit by remember { mutableStateOf<Transaction?>(null) }
 
-    // Logic to handle saving a transaction
-    val onSaveTransaction = { transaction: Transaction, stockId: String?, newStockIdentifier: String ->
+    val onSaveOrUpdateTransaction = { transaction: Transaction, stockId: String?, newStockIdentifier: String ->
         val idToProcess = (stockId ?: newStockIdentifier).uppercase()
-
         if (idToProcess.isNotBlank()) {
             val existingStock = holdings.find { it.id.equals(idToProcess, ignoreCase = true) }
 
-            if (existingStock != null) {
-                // Add transaction to an existing stock
-                val updatedTransactions = existingStock.transactions + transaction
+            val updatedHoldings = if (existingStock != null) {
+                val isNewTransaction = existingStock.transactions.none { it.id == transaction.id }
+                val updatedTransactions = if (isNewTransaction) {
+                    existingStock.transactions + transaction
+                } else {
+                    existingStock.transactions.map { if (it.id == transaction.id) transaction else it }
+                }
                 val updatedStock = existingStock.copy(transactions = updatedTransactions)
-                holdings = holdings.map { if (it.id.equals(idToProcess, ignoreCase = true)) updatedStock else it }
+                holdings.map { if (it.id.equals(idToProcess, ignoreCase = true)) updatedStock else it }
             } else {
-                // Create a new stock holding, since one with this ID doesn't exist
                 val newStock = StockHolding(
                     id = idToProcess,
-                    name = idToProcess, // Using ID as name for simplicity
+                    name = idToProcess,
                     ticker = "NASDAQ:$idToProcess",
-                    currentPrice = transaction.price, // Use transaction price as initial price
+                    currentPrice = transaction.price,
                     transactions = listOf(transaction)
                 )
-                holdings = holdings + newStock
+                holdings + newStock
             }
-            // Navigate back after saving
-            // If stockId was passed, we came from Details screen.
-            currentScreen = if (stockId != null) Screen.Details else Screen.Portfolio
+
+            holdings = updatedHoldings
+            selectedStock = updatedHoldings.find { it.id.equals(idToProcess, ignoreCase = true) }
+            currentScreen = if (stockId != null || existingStock != null) Screen.Details else Screen.Portfolio
+        }
+    }
+
+    val onDeleteTransaction = { transactionId: String, stockId: String ->
+        val stockToUpdate = holdings.find { it.id.equals(stockId, ignoreCase = true) }
+
+        if (stockToUpdate != null) {
+            val updatedTransactions = stockToUpdate.transactions.filterNot { it.id == transactionId }
+            val updatedStock = stockToUpdate.copy(transactions = updatedTransactions)
+
+            holdings = holdings.map { if (it.id == stockId) updatedStock else it }
+            selectedStock = updatedStock
+            currentScreen = Screen.Details
         }
     }
 
 
     when (currentScreen) {
         Screen.Portfolio -> PortfolioScreen(
-            holdings = holdings, // Pass the dynamic list
+            holdings = holdings,
             onStockClick = { stock ->
                 selectedStock = stock
                 currentScreen = Screen.Details
             },
             onAddClick = {
-                // 导航到通用交易页面，而不是特定股票
                 selectedStock = null
-                currentScreen = Screen.AddTransaction
+                transactionToEdit = null
+                currentScreen = Screen.AddOrEditTransaction
             }
         )
         Screen.Details -> {
@@ -251,22 +269,25 @@ fun StockApp() {
                     stock = stock,
                     onBack = { currentScreen = Screen.Portfolio },
                     onAddTransaction = {
-                        // `selectedStock` 已经设置
-                        currentScreen = Screen.AddTransaction
+                        transactionToEdit = null
+                        currentScreen = Screen.AddOrEditTransaction
+                    },
+                    onTransactionClick = { transaction ->
+                        transactionToEdit = transaction
+                        currentScreen = Screen.AddOrEditTransaction
                     }
                 )
             }
         }
-        Screen.AddTransaction -> {
-            // 如果是从详情页过来的，`selectedStock`会有值，否则为null
-            AddTransactionScreen(
+        Screen.AddOrEditTransaction -> {
+            AddOrEditTransactionScreen(
                 stock = selectedStock,
+                transactionToEdit = transactionToEdit,
                 onBack = {
                     currentScreen = if (selectedStock != null) Screen.Details else Screen.Portfolio
                 },
-                onSave = { transaction, stockIdentifier ->
-                    onSaveTransaction(transaction, selectedStock?.id, stockIdentifier)
-                }
+                onSave = onSaveOrUpdateTransaction,
+                onDelete = onDeleteTransaction
             )
         }
     }
@@ -324,7 +345,8 @@ fun PortfolioScreen(
 fun StockDetailScreen(
     stock: StockHolding,
     onBack: () -> Unit,
-    onAddTransaction: () -> Unit
+    onAddTransaction: () -> Unit,
+    onTransactionClick: (Transaction) -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -362,7 +384,7 @@ fun StockDetailScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
             items(stock.transactions.sortedByDescending { it.date }) { transaction ->
-                TransactionItem(transaction)
+                TransactionItem(transaction, onClick = { onTransactionClick(transaction) })
             }
         }
     }
@@ -370,23 +392,27 @@ fun StockDetailScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTransactionScreen(
-    stock: StockHolding?, // 可为空，表示新建持仓
+fun AddOrEditTransactionScreen(
+    stock: StockHolding?,
+    transactionToEdit: Transaction?,
     onBack: () -> Unit,
-    onSave: (transaction: Transaction, newStockIdentifier: String) -> Unit
+    onSave: (transaction: Transaction, stockId: String?, newStockIdentifier: String) -> Unit,
+    onDelete: (transactionId: String, stockId: String) -> Unit
 ) {
-    var transactionType by remember { mutableStateOf(TransactionType.BUY) }
-    var price by remember { mutableStateOf(stock?.currentPrice?.toString() ?: "") }
-    var quantity by remember { mutableStateOf("") }
-    var fee by remember { mutableStateOf("") }
+    val isEditMode = transactionToEdit != null
     val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
-    var date by remember { mutableStateOf(LocalDate.now().format(formatter)) }
+
+    var transactionType by remember { mutableStateOf(transactionToEdit?.type ?: TransactionType.BUY) }
+    var price by remember { mutableStateOf(transactionToEdit?.price?.toString() ?: stock?.currentPrice?.toString() ?: "") }
+    var quantity by remember { mutableStateOf(transactionToEdit?.quantity?.toString() ?: "") }
+    var fee by remember { mutableStateOf(transactionToEdit?.fee?.toString() ?: "") }
+    var date by remember { mutableStateOf(transactionToEdit?.date?.format(formatter) ?: LocalDate.now().format(formatter)) }
     var newStockIdentifier by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (stock != null) stock.name else "模拟持仓") },
+                title = { Text(if (isEditMode) "编辑交易" else if (stock != null) stock.name else "模拟持仓") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "返回")
@@ -405,8 +431,7 @@ fun AddTransactionScreen(
                 .padding(16.dp)
                 .fillMaxSize()
         ) {
-            if (stock == null) {
-                // 如果是新建，需要输入股票代码和名称
+            if (stock == null && !isEditMode) {
                 OutlinedTextField(
                     value = newStockIdentifier,
                     onValueChange = { newStockIdentifier = it },
@@ -415,11 +440,10 @@ fun AddTransactionScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
             } else {
-                Text("最新价: ${stock.currentPrice}", fontSize = 14.sp, color = Color.Gray)
+                Text("最新价: ${stock?.currentPrice}", fontSize = 14.sp, color = Color.Gray)
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // 买入/卖出 切换
             Row(modifier = Modifier.fillMaxWidth()) {
                 Button(
                     onClick = { transactionType = TransactionType.BUY },
@@ -439,7 +463,6 @@ fun AddTransactionScreen(
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 表单项
             TransactionInputRow(label = "日期", value = date, onValueChange = { date = it })
             TransactionInputRow(label = "价格", value = price, onValueChange = { price = it }, isNumeric = true)
             TransactionInputRow(label = "数量", value = quantity, onValueChange = { quantity = it }, placeholder = "请输入股数", isNumeric = true)
@@ -450,15 +473,16 @@ fun AddTransactionScreen(
                 onClick = {
                     val p = price.toDoubleOrNull() ?: 0.0
                     val q = quantity.toIntOrNull() ?: 0
-                    if (p > 0 && q > 0) { // Basic validation
-                        val transaction = Transaction(
-                            date = LocalDate.parse(date, DateTimeFormatter.ofPattern("yyyy/MM/dd")),
+                    if ((stock != null || newStockIdentifier.isNotBlank()) && p > 0 && q > 0) {
+                        val finalTransaction = Transaction(
+                            id = transactionToEdit?.id ?: UUID.randomUUID().toString(),
+                            date = LocalDate.parse(date, formatter),
                             type = transactionType,
                             quantity = q,
                             price = p,
                             fee = fee.toDoubleOrNull() ?: 0.0
                         )
-                        onSave(transaction, newStockIdentifier)
+                        onSave(finalTransaction, stock?.id, newStockIdentifier)
                     }
                 },
                 modifier = Modifier
@@ -466,6 +490,22 @@ fun AddTransactionScreen(
                     .height(50.dp)
             ) {
                 Text("保存", fontSize = 18.sp)
+            }
+            if (isEditMode) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        stock?.id?.let { stockId ->
+                            transactionToEdit?.id?.let { transactionId ->
+                                onDelete(transactionId, stockId)
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    Text("删除", fontSize = 18.sp)
+                }
             }
         }
     }
@@ -492,12 +532,10 @@ fun PortfolioHeader(totalValue: Double, totalPL: Double) {
             Row {
                 Column(modifier = Modifier.weight(1f)) {
                     Text("当日盈亏", style = MaterialTheme.typography.labelMedium, color = Color.LightGray)
-                    // 模拟数据
                     PLText(value = -1207.55, percent = -3.27, isPercentFirst = false)
                 }
                 Column(modifier = Modifier.weight(1f)) {
                     Text("持仓盈亏", style = MaterialTheme.typography.labelMedium, color = Color.LightGray)
-                    // 模拟数据
                     PLText(value = -13022.99, percent = -29.89, isPercentFirst = false)
                 }
                 Column(modifier = Modifier.weight(1f)) {
@@ -518,7 +556,6 @@ fun StockHoldingItem(stock: StockHolding, onClick: () -> Unit) {
             .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Logo Placeholder
         Box(
             modifier = Modifier
                 .size(40.dp)
@@ -575,11 +612,12 @@ fun StockDetailHeader(stock: StockHolding) {
 }
 
 @Composable
-fun TransactionItem(transaction: Transaction) {
+fun TransactionItem(transaction: Transaction, onClick: () -> Unit) {
     val formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = onClick)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -702,7 +740,7 @@ fun PortfolioScreenPreview() {
 @Composable
 fun StockDetailScreenPreview() {
     StockTrackerTheme(darkTheme = true) {
-        StockDetailScreen(SampleData.holdings.last(), {}, {})
+        StockDetailScreen(SampleData.holdings.last(), {}, {}, {})
     }
 }
 
@@ -710,7 +748,15 @@ fun StockDetailScreenPreview() {
 @Composable
 fun AddTransactionScreenPreview() {
     StockTrackerTheme(darkTheme = true) {
-        AddTransactionScreen(stock = SampleData.holdings.first(), onBack = {}, onSave = { _, _ -> })
+        AddOrEditTransactionScreen(stock = SampleData.holdings.first(), transactionToEdit = null, onBack = {}, onSave = { _, _, _ -> }, onDelete = { _, _ ->})
+    }
+}
+
+@Preview(showBackground = true, widthDp = 360, heightDp = 740)
+@Composable
+fun EditTransactionScreenPreview() {
+    StockTrackerTheme(darkTheme = true) {
+        AddOrEditTransactionScreen(stock = SampleData.holdings.first(), transactionToEdit = SampleData.holdings.first().transactions.first(), onBack = {}, onSave = { _, _, _ -> }, onDelete = { _, _ ->})
     }
 }
 
