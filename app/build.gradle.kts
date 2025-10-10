@@ -1,8 +1,10 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.kotlin.compose)
-    id("kotlin-kapt")}
+    alias(libs.plugins.kotlin.compose) // This should be `alias(libs.plugins.kotlin.compose.compiler)` if you are using version catalogs for compose compiler
+    id("com.google.devtools.ksp") version "2.0.21-1.0.28"
+
+}
 
 android {
     namespace = "com.example.stocktracker"
@@ -60,7 +62,7 @@ dependencies {
 
     // 在 dependencies { ... } 代码块内添加
     implementation("androidx.room:room-runtime:2.8.2")
-    kapt("androidx.room:room-compiler:2.8.2")
+    ksp("androidx.room:room-compiler:2.8.2")
     implementation("androidx.room:room-ktx:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.4")
