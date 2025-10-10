@@ -204,26 +204,31 @@ fun StockApp() {
 
     // Logic to handle saving a transaction
     val onSaveTransaction = { transaction: Transaction, stockId: String?, newStockIdentifier: String ->
-        val existingStock = holdings.find { it.id == stockId }
+        val idToProcess = (stockId ?: newStockIdentifier).uppercase()
 
-        if (existingStock != null) {
-            // Add transaction to an existing stock
-            val updatedTransactions = existingStock.transactions + transaction
-            val updatedStock = existingStock.copy(transactions = updatedTransactions)
-            holdings = holdings.map { if (it.id == stockId) updatedStock else it }
-        } else if (newStockIdentifier.isNotBlank()) {
-            // Create a new stock holding
-            val newStock = StockHolding(
-                id = newStockIdentifier.uppercase(),
-                name = newStockIdentifier,
-                ticker = "NASDAQ:${newStockIdentifier.uppercase()}",
-                currentPrice = transaction.price, // Use transaction price as initial price
-                transactions = listOf(transaction)
-            )
-            holdings = holdings + newStock
+        if (idToProcess.isNotBlank()) {
+            val existingStock = holdings.find { it.id.equals(idToProcess, ignoreCase = true) }
+
+            if (existingStock != null) {
+                // Add transaction to an existing stock
+                val updatedTransactions = existingStock.transactions + transaction
+                val updatedStock = existingStock.copy(transactions = updatedTransactions)
+                holdings = holdings.map { if (it.id.equals(idToProcess, ignoreCase = true)) updatedStock else it }
+            } else {
+                // Create a new stock holding, since one with this ID doesn't exist
+                val newStock = StockHolding(
+                    id = idToProcess,
+                    name = idToProcess, // Using ID as name for simplicity
+                    ticker = "NASDAQ:$idToProcess",
+                    currentPrice = transaction.price, // Use transaction price as initial price
+                    transactions = listOf(transaction)
+                )
+                holdings = holdings + newStock
+            }
+            // Navigate back after saving
+            // If stockId was passed, we came from Details screen.
+            currentScreen = if (stockId != null) Screen.Details else Screen.Portfolio
         }
-        // Navigate back after saving
-        currentScreen = if (stockId != null) Screen.Details else Screen.Portfolio
     }
 
 
