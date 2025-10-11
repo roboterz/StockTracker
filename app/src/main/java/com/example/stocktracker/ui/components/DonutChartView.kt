@@ -8,6 +8,7 @@ import android.util.AttributeSet
 import android.view.View
 import androidx.core.content.ContextCompat
 import com.example.stocktracker.R
+import kotlin.math.min
 
 data class ChartSegment(val value: Float, val colorResId: Int)
 
@@ -16,13 +17,13 @@ class DonutChartView @JvmOverloads constructor(
 ) : View(context, attrs, defStyleAttr) {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val rectF = RectF()
+    private val rectF = RectF() // Reusable rect
     private var segments = emptyList<ChartSegment>()
-    private val strokeWidth = 35f
+    private val normalStrokeWidth = 30f
+    private val wideStrokeWidth = 40f // 为最宽的色块设置更宽的笔触
 
     init {
         paint.style = Paint.Style.STROKE
-        paint.strokeWidth = strokeWidth
     }
 
     fun setData(newSegments: List<ChartSegment>) {
@@ -38,27 +39,43 @@ class DonutChartView @JvmOverloads constructor(
         val totalValue = segments.sumOf { it.value.toDouble() }.toFloat()
         if (totalValue == 0f) return
 
-        // 定义色块之间的间隔角度
+        // 找出最大的色块
+        val maxSegment = segments.maxByOrNull { it.value }
+
         val spacingAngle = 5.0f
-        var startAngle = -90f
+        var startAngle = -125f
 
-        val diameter = (width.coerceAtMost(height) - strokeWidth).toFloat()
-        val left = (width - diameter) / 2
-        val top = (height - diameter) / 2
-        rectF.set(left, top, left + diameter, top + diameter)
+        val viewSize = min(width, height).toFloat()
+        val centerX = width / 2f
+        val centerY = height / 2f
 
+        // 定义一个固定的内圈半径，所有色块的内边缘都将对齐到这里
+        // 这个半径是根据视图大小和最宽的笔触计算出来的
+        val innerRadius = (viewSize / 2f) - wideStrokeWidth
 
         segments.forEach { segment ->
+            val isMax = segment == maxSegment
+            val currentStrokeWidth = if (isMax) wideStrokeWidth else normalStrokeWidth
+            paint.strokeWidth = currentStrokeWidth
             paint.color = ContextCompat.getColor(context, segment.colorResId)
-            val sweepAngle = (segment.value / totalValue) * 360f
 
-            // 从每个色块的扫描角度中减去间隔角度，以创建间隙
-            // 确保绘制的角度不为负
+            // 路径的半径是笔触的中心线
+            // 我们动态计算它，以确保笔触的内边缘始终在 `innerRadius`
+            val pathRadius = innerRadius + (currentStrokeWidth / 2f)
+
+            // 根据路径半径计算出用于绘制圆弧的矩形
+            rectF.set(
+                centerX - pathRadius,
+                centerY - pathRadius,
+                centerX + pathRadius,
+                centerY + pathRadius
+            )
+
+            val sweepAngle = (segment.value / totalValue) * 360f
             val angleToDraw = (sweepAngle - spacingAngle).coerceAtLeast(0f)
 
             canvas.drawArc(rectF, startAngle, angleToDraw, false, paint)
 
-            // 将起始角度增加完整的扫描角度，以正确定位下一个色块
             startAngle += sweepAngle
         }
     }
