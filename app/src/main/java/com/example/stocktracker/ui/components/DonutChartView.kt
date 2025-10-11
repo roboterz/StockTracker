@@ -7,6 +7,7 @@ import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.View
 import androidx.core.content.ContextCompat
+import com.example.stocktracker.R
 
 data class ChartSegment(val value: Float, val colorResId: Int)
 
@@ -37,6 +38,8 @@ class DonutChartView @JvmOverloads constructor(
         val totalValue = segments.sumOf { it.value.toDouble() }.toFloat()
         if (totalValue == 0f) return
 
+        // 定义色块之间的间隔角度
+        val spacingAngle = 5.0f
         var startAngle = -90f
 
         val diameter = (width.coerceAtMost(height) - strokeWidth).toFloat()
@@ -48,8 +51,16 @@ class DonutChartView @JvmOverloads constructor(
         segments.forEach { segment ->
             paint.color = ContextCompat.getColor(context, segment.colorResId)
             val sweepAngle = (segment.value / totalValue) * 360f
-            canvas.drawArc(rectF, startAngle, sweepAngle, false, paint)
+
+            // 从每个色块的扫描角度中减去间隔角度，以创建间隙
+            // 确保绘制的角度不为负
+            val angleToDraw = (sweepAngle - spacingAngle).coerceAtLeast(0f)
+
+            canvas.drawArc(rectF, startAngle, angleToDraw, false, paint)
+
+            // 将起始角度增加完整的扫描角度，以正确定位下一个色块
             startAngle += sweepAngle
         }
     }
 }
+
