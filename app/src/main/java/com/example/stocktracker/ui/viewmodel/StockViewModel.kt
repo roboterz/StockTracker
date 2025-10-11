@@ -22,7 +22,7 @@ data class StockUiState(
     val holdings: List<StockHolding> = emptyList(),
     val selectedStockId: String? = null,
     val transactionToEditId: String? = null,
-    val cashBalance: Double = 5936.35 // 新增现金余额字段
+    val cashBalance: Double = 5936.35
 ) {
     val selectedStock: StockHolding
         get() = holdings.find { it.id == selectedStockId } ?: StockHolding.empty
@@ -37,7 +37,6 @@ class StockViewModel(application: Application) : ViewModel() {
     private val _uiState = MutableStateFlow(StockUiState())
     val uiState: StateFlow<StockUiState> = _uiState.asStateFlow()
 
-    // SharedFlow用于发送一次性的导航事件
     private val _navigationEvents = MutableSharedFlow<NavigationEvent>()
     val navigationEvents = _navigationEvents.asSharedFlow()
 
@@ -85,13 +84,15 @@ class StockViewModel(application: Application) : ViewModel() {
             val existingStock = _uiState.value.holdings.find { it.id.equals(idToProcess, ignoreCase = true) }
 
             if (existingStock != null) {
-                // 更新现有股票的名称
+                // *** 关键修复 ***
+                // 使用 updateStock 而不是 insertStock 来避免触发级联删除
                 val updatedStockEntity = existingStock.toEntity().copy(name = stockName)
-                dao.insertStock(updatedStockEntity) // OnConflictStrategy.REPLACE会处理更新
-                // 插入或更新交易
+                dao.updateStock(updatedStockEntity)
+
+                // 插入或更新交易记录
                 dao.insertTransaction(transaction.toEntity(existingStock.id))
             } else {
-                // 这是一个新股票
+                // 这是一个全新的股票
                 val newStock = StockHolding(
                     id = idToProcess,
                     name = stockName,
@@ -102,7 +103,7 @@ class StockViewModel(application: Application) : ViewModel() {
                 dao.insertStock(newStock.toEntity())
                 dao.insertTransaction(transaction.toEntity(newStock.id))
             }
-            // 发送导航事件，而不是直接控制UI
+
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }

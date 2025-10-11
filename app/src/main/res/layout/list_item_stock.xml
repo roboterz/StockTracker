@@ -1,39 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:orientation="horizontal"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="16dp"
+    android:background="?android:attr/selectableItemBackground"
     android:gravity="center_vertical"
-    android:background="?android:attr/selectableItemBackground">
+    android:orientation="horizontal"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp">
 
-    <TextView
-        android:id="@+id/text_view_initial"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:background="@drawable/circle_background"
-        android:gravity="center"
-        android:textColor="@android:color/white"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        tools:text="T" />
-
+    <!-- Column 1: Name & Ticker -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
-        android:orientation="vertical"
-        android:layout_marginStart="12dp">
+        android:layout_weight="2.2"
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/text_view_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
             android:textColor="@android:color/white"
             android:textSize="16sp"
             android:textStyle="bold"
-            tools:text="特斯拉" />
+            tools:text="Sharplink G..." />
 
         <TextView
             android:id="@+id/text_view_ticker"
@@ -41,14 +33,16 @@
             android:layout_height="wrap_content"
             android:textColor="@android:color/darker_gray"
             android:textSize="12sp"
-            tools:text="NASDAQ:TSLA" />
+            tools:text="NASDAQ:SBET" />
     </LinearLayout>
 
+    <!-- Column 2: Market Value & Total Cost -->
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:gravity="end">
+        android:layout_weight="1.8"
+        android:gravity="end"
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/text_view_market_value"
@@ -56,14 +50,66 @@
             android:layout_height="wrap_content"
             android:textColor="@android:color/white"
             android:textSize="16sp"
-            tools:text="22,352.00" />
+            tools:text="10,974.00" />
 
         <TextView
-            android:id="@+id/text_view_pl"
+            android:id="@+id/text_view_total_cost"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@android:color/darker_gray"
+            android:textSize="12sp"
+            tools:text="(USD)20,643.20" />
+    </LinearLayout>
+
+    <!-- Column 3: Daily P/L -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.5"
+        android:gravity="end"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/text_view_daily_pl_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            tools:text="-677.00"
+            tools:textColor="@color/negative_red" />
+
+        <TextView
+            android:id="@+id/text_view_daily_pl_percent"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="12sp"
-            tools:textColor="@android:color/holo_green_light"
-            tools:text="+5,122.05 (+22.91%)" />
+            tools:text="-5.81%"
+            tools:textColor="@color/negative_red" />
     </LinearLayout>
+
+    <!-- Column 4: Total P/L -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1.5"
+        android:gravity="end"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/text_view_total_pl_value"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="16sp"
+            tools:text="-9,171.70"
+            tools:textColor="@color/negative_red" />
+
+        <TextView
+            android:id="@+id/text_view_total_pl_percent"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="12sp"
+            tools:text="-44.43%"
+            tools:textColor="@color/negative_red" />
+    </LinearLayout>
+
 </LinearLayout>
+

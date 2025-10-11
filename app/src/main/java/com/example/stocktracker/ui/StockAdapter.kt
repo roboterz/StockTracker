@@ -32,7 +32,6 @@ class StockAdapter(private val onItemClicked: (StockHolding) -> Unit) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(stock: StockHolding) {
-            binding.textViewInitial.text = stock.name.first().toString()
             binding.textViewName.text = stock.name
             binding.textViewTicker.text = stock.ticker
             binding.textViewMarketValue.text = formatCurrency(stock.marketValue, showSign = false)
@@ -43,14 +42,14 @@ class StockAdapter(private val onItemClicked: (StockHolding) -> Unit) :
                     showSign = true
                 )
             } (${DecimalFormat("#.##").format(stock.totalPLPercent)}%)"
-            binding.textViewPl.text = plText
+
 
             val plColor = if (stock.totalPL >= 0) {
                 ContextCompat.getColor(itemView.context, R.color.positive_green)
             } else {
                 ContextCompat.getColor(itemView.context, R.color.negative_red)
             }
-            binding.textViewPl.setTextColor(plColor)
+
         }
     }
 

@@ -84,6 +84,9 @@ interface StockDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStock(stock: StockHoldingEntity)
 
+    @Update
+    suspend fun updateStock(stock: StockHoldingEntity) // 确认此方法存在
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: TransactionEntity)
 
@@ -136,3 +139,4 @@ abstract class StockDatabase : RoomDatabase() {
         }
     }
 }
+

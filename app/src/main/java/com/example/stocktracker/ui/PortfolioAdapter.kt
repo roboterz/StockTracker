@@ -3,7 +3,6 @@ package com.example.stocktracker.ui
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
@@ -177,22 +176,39 @@ class PortfolioAdapter(
 
     class StockViewHolder(private val binding: ListItemStockBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(stock: StockHolding, onStockClicked: (StockHolding) -> Unit) {
+            // The reference to 'textViewInitial' was removed because the new layout
+            // in list_item_stock.xml no longer contains that circular view.
             itemView.setOnClickListener { onStockClicked(stock) }
-            binding.textViewInitial.text = stock.name.firstOrNull()?.toString() ?: ""
+
+            // Column 1
             binding.textViewName.text = stock.name
             binding.textViewTicker.text = stock.ticker
+
+            // Column 2
             binding.textViewMarketValue.text = formatCurrency(stock.marketValue, false)
+            binding.textViewTotalCost.text = "(USD)${formatCurrency(stock.totalCost - stock.totalSoldValue, false)}"
 
-            val plText = "${formatCurrency(stock.totalPL, true)} (${String.format("%.2f%%", stock.totalPLPercent)})"
-            binding.textViewPl.text = plText
+            // Column 3
+            binding.textViewDailyPlValue.text = formatCurrency(stock.dailyPL, true)
+            binding.textViewDailyPlPercent.text = String.format("%.2f%%", stock.dailyPLPercent)
+            updatePlColor(binding.textViewDailyPlValue, binding.textViewDailyPlPercent, stock.dailyPL)
 
-            val plColor = if (stock.totalPL >= 0) {
+            // Column 4
+            binding.textViewTotalPlValue.text = formatCurrency(stock.totalPL, true)
+            binding.textViewTotalPlPercent.text = String.format("%.2f%%", stock.totalPLPercent)
+            updatePlColor(binding.textViewTotalPlValue, binding.textViewTotalPlPercent, stock.totalPL)
+        }
+
+        private fun updatePlColor(valueView: TextView, percentView: TextView, value: Double) {
+            val color = if (value >= 0) {
                 ContextCompat.getColor(itemView.context, R.color.positive_green)
             } else {
                 ContextCompat.getColor(itemView.context, R.color.negative_red)
             }
-            binding.textViewPl.setTextColor(plColor)
+            valueView.setTextColor(color)
+            percentView.setTextColor(color)
         }
+
         companion object {
             fun from(parent: ViewGroup): StockViewHolder {
                 val layoutInflater = LayoutInflater.from(parent.context)
@@ -214,3 +230,4 @@ class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioListItem>() {
         return oldItem == newItem
     }
 }
+
