@@ -4,7 +4,6 @@ import android.app.Application
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.stocktracker.Screen
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.data.Transaction
 import com.example.stocktracker.data.database.StockDatabase
@@ -14,13 +13,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-// --- ViewModel ---
+// --- 用于从ViewModel发送到UI的单次导航事件 ---
+sealed class NavigationEvent {
+    object NavigateBack : NavigationEvent()
+}
 
 data class StockUiState(
     val holdings: List<StockHolding> = emptyList(),
-    val currentScreen: Screen = Screen.Portfolio,
     val selectedStockId: String? = null,
-    val transactionToEditId: String? = null
+    val transactionToEditId: String? = null,
+    val cashBalance: Double = 5936.35 // 新增现金余额字段
 ) {
     val selectedStock: StockHolding
         get() = holdings.find { it.id == selectedStockId } ?: StockHolding.empty
@@ -35,6 +37,11 @@ class StockViewModel(application: Application) : ViewModel() {
     private val _uiState = MutableStateFlow(StockUiState())
     val uiState: StateFlow<StockUiState> = _uiState.asStateFlow()
 
+    // SharedFlow用于发送一次性的导航事件
+    private val _navigationEvents = MutableSharedFlow<NavigationEvent>()
+    val navigationEvents = _navigationEvents.asSharedFlow()
+
+
     init {
         viewModelScope.launch(Dispatchers.IO) {
             dao.getAllStocksWithTransactions()
@@ -48,41 +55,21 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
-    fun navigateTo(screen: Screen) {
-        _uiState.update { it.copy(currentScreen = screen) }
-    }
-
     fun selectStock(stockId: String) {
-        _uiState.update { it.copy(selectedStockId = stockId, currentScreen = Screen.Details) }
+        _uiState.update { it.copy(selectedStockId = stockId) }
     }
 
     fun prepareNewTransaction(stockId: String? = null) {
         _uiState.update {
             it.copy(
-                selectedStockId = stockId, // Bug fix: Explicitly set or clear the stock ID
-                transactionToEditId = null,
-                currentScreen = Screen.AddOrEditTransaction
+                selectedStockId = stockId,
+                transactionToEditId = null
             )
         }
     }
 
     fun prepareEditTransaction(transactionId: String) {
-        _uiState.update {
-            it.copy(
-                transactionToEditId = transactionId,
-                currentScreen = Screen.AddOrEditTransaction
-            )
-        }
-    }
-
-    fun navigateBack() {
-        val currentState = _uiState.value
-        val newScreen = when (currentState.currentScreen) {
-            Screen.AddOrEditTransaction -> if (currentState.selectedStockId != null) Screen.Details else Screen.Portfolio
-            Screen.Details -> Screen.Portfolio
-            else -> Screen.Portfolio
-        }
-        _uiState.update { it.copy(currentScreen = newScreen, transactionToEditId = null) }
+        _uiState.update { it.copy(transactionToEditId = transactionId) }
     }
 
     fun saveOrUpdateTransaction(transaction: Transaction, stockId: String?, newStockIdentifier: String) {
@@ -93,10 +80,8 @@ class StockViewModel(application: Application) : ViewModel() {
             val existingStock = _uiState.value.holdings.find { it.id.equals(idToProcess, ignoreCase = true) }
 
             if (existingStock != null) {
-                // It's an existing stock, just insert or update the transaction
                 dao.insertTransaction(transaction.toEntity(existingStock.id))
             } else {
-                // It's a new stock
                 val newStock = StockHolding(
                     id = idToProcess,
                     name = newStockIdentifier,
@@ -107,14 +92,15 @@ class StockViewModel(application: Application) : ViewModel() {
                 dao.insertStock(newStock.toEntity())
                 dao.insertTransaction(transaction.toEntity(newStock.id))
             }
-            navigateBack()
+            // 发送导航事件，而不是直接控制UI
+            _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }
 
-    fun deleteTransaction(transactionId: String, stockId: String) {
+    fun deleteTransaction(transactionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             dao.deleteTransactionById(transactionId)
-            navigateBack()
+            _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }
 }
@@ -128,3 +114,4 @@ class StockViewModelFactory(private val application: Application) : ViewModelPro
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+

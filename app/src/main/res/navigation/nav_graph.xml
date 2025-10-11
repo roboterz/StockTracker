@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/portfolioFragment">
+
+    <fragment
+        android:id="@+id/portfolioFragment"
+        android:name="com.example.stocktracker.ui.screens.PortfolioFragment"
+        android:label="Portfolio"
+        tools:layout="@layout/fragment_portfolio">
+        <action
+            android:id="@+id/action_portfolioFragment_to_stockDetailFragment"
+            app:destination="@id/stockDetailFragment" />
+        <action
+            android:id="@+id/action_portfolioFragment_to_addOrEditTransactionFragment"
+            app:destination="@id/addOrEditTransactionFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/stockDetailFragment"
+        android:name="com.example.stocktracker.ui.screens.StockDetailFragment"
+        android:label="Stock Details"
+        tools:layout="@layout/fragment_stock_detail">
+        <action
+            android:id="@+id/action_stockDetailFragment_to_addOrEditTransactionFragment"
+            app:destination="@id/addOrEditTransactionFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/addOrEditTransactionFragment"
+        android:name="com.example.stocktracker.ui.screens.AddOrEditTransactionFragment"
+        android:label="Add/Edit Transaction"
+        tools:layout="@layout/fragment_add_or_edit_transaction" />
+
+</navigation>
+

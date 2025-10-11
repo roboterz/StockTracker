@@ -23,7 +23,13 @@ data class StockHolding(
     val name: String,
     val ticker: String,
     val currentPrice: Double,
-    val transactions: List<Transaction>
+    val transactions: List<Transaction>,
+    // 新增属性以匹配UI需求
+    val dailyPL: Double = 0.0,
+    val dailyPLPercent: Double = 0.0,
+    val holdingPL: Double = 0.0,
+    val holdingPLPercent: Double = 0.0,
+    val cumulativeDividend: Double = 0.0
 ) {
     val totalQuantity: Int
         get() = transactions.sumOf { if (it.type == TransactionType.BUY) it.quantity else if(it.type == TransactionType.SELL) -it.quantity else 0 }
@@ -47,6 +53,7 @@ data class StockHolding(
         get() = if ((totalCost - totalSoldValue) > 0) totalPL / (totalCost - totalSoldValue) * 100 else 0.0
 
     companion object {
-        val empty = StockHolding("", "", "", 0.0, emptyList())
+        val empty = StockHolding("", "", "", 0.0, emptyList(), 0.0, 0.0, 0.0, 0.0, 0.0)
     }
 }
+
