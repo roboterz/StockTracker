@@ -64,6 +64,7 @@ class AddOrEditTransactionFragment : Fragment() {
         if (!isNewStockMode) {
             binding.textViewStockName.text = stock.name
             binding.textViewCurrentPrice.text = "最新价: ${stock.currentPrice}"
+            binding.editTextStockName.setText(stock.name)
         }
 
         if (isEditMode && transaction != null) {
@@ -73,9 +74,7 @@ class AddOrEditTransactionFragment : Fragment() {
             binding.editTextFee.setText(transaction.fee.toString())
             binding.editTextDate.setText(transaction.date.format(formatter))
         } else {
-            // Default to BUY
             binding.buttonToggleGroup.check(binding.buttonBuy.id)
-            // Set current price if adding to existing stock
             if (!isNewStockMode) {
                 binding.editTextPrice.setText(stock.currentPrice.toString())
             }
@@ -94,8 +93,9 @@ class AddOrEditTransactionFragment : Fragment() {
             val fee = binding.editTextFee.text.toString().toDoubleOrNull() ?: 0.0
             val dateStr = binding.editTextDate.text.toString()
             val newStockId = binding.editTextStockId.text.toString()
+            val stockName = binding.editTextStockName.text.toString()
 
-            if (price == null || quantity == null || dateStr.isBlank() || (isNewStockMode && newStockId.isBlank())) {
+            if (price == null || quantity == null || dateStr.isBlank() || stockName.isBlank() || (isNewStockMode && newStockId.isBlank())) {
                 Toast.makeText(context, "请填写所有必填字段", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
@@ -109,7 +109,7 @@ class AddOrEditTransactionFragment : Fragment() {
                 fee = fee
             )
 
-            viewModel.saveOrUpdateTransaction(transaction, stock.id.ifEmpty { null }, newStockId)
+            viewModel.saveOrUpdateTransaction(transaction, stock.id.ifEmpty { null }, newStockId, stockName)
         }
 
         binding.buttonDelete.setOnClickListener {

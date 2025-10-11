@@ -72,7 +72,12 @@ class StockViewModel(application: Application) : ViewModel() {
         _uiState.update { it.copy(transactionToEditId = transactionId) }
     }
 
-    fun saveOrUpdateTransaction(transaction: Transaction, stockId: String?, newStockIdentifier: String) {
+    fun saveOrUpdateTransaction(
+        transaction: Transaction,
+        stockId: String?,
+        newStockIdentifier: String,
+        stockName: String
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             val idToProcess = (stockId ?: newStockIdentifier).uppercase()
             if (idToProcess.isBlank()) return@launch
@@ -80,11 +85,16 @@ class StockViewModel(application: Application) : ViewModel() {
             val existingStock = _uiState.value.holdings.find { it.id.equals(idToProcess, ignoreCase = true) }
 
             if (existingStock != null) {
+                // 更新现有股票的名称
+                val updatedStockEntity = existingStock.toEntity().copy(name = stockName)
+                dao.insertStock(updatedStockEntity) // OnConflictStrategy.REPLACE会处理更新
+                // 插入或更新交易
                 dao.insertTransaction(transaction.toEntity(existingStock.id))
             } else {
+                // 这是一个新股票
                 val newStock = StockHolding(
                     id = idToProcess,
-                    name = newStockIdentifier,
+                    name = stockName,
                     ticker = "NASDAQ:$idToProcess",
                     currentPrice = transaction.price,
                     transactions = emptyList()
