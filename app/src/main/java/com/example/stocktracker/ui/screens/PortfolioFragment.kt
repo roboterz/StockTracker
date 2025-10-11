@@ -47,7 +47,7 @@ class PortfolioFragment : Fragment() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { uiState ->
                     // 过滤掉持仓数量为0的股票
-                    val holdingsWithShares = uiState.holdings.filter { it.totalQuantity > 0 }
+                    val holdingsWithShares = uiState.holdings.filter { it.totalQuantity != 0 }
 
                     val portfolioItems = mutableListOf<PortfolioListItem>()
                     // 1. 添加头部 (仍然使用完整的uiState来进行总体计算)
