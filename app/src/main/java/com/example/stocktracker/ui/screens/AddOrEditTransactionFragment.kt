@@ -57,14 +57,16 @@ class AddOrEditTransactionFragment : Fragment() {
         binding.toolbar.title = if (isEditMode) "编辑交易" else "添加交易"
         binding.toolbar.setNavigationOnClickListener { findNavController().popBackStack() }
 
-        binding.textInputLayoutStockId.isVisible = isNewStockMode
+        // 根据模式切换UI
         binding.layoutStockInfo.isVisible = !isNewStockMode
+        binding.textInputLayoutStockId.isVisible = isNewStockMode
+        binding.textInputLayoutStockName.isVisible = isNewStockMode
+
         binding.buttonDelete.isVisible = isEditMode
 
         if (!isNewStockMode) {
             binding.textViewStockName.text = stock.name
             binding.textViewCurrentPrice.text = "最新价: ${stock.currentPrice}"
-            binding.editTextStockName.setText(stock.name)
         }
 
         if (isEditMode && transaction != null) {
@@ -92,10 +94,13 @@ class AddOrEditTransactionFragment : Fragment() {
             val quantity = binding.editTextQuantity.text.toString().toIntOrNull()
             val fee = binding.editTextFee.text.toString().toDoubleOrNull() ?: 0.0
             val dateStr = binding.editTextDate.text.toString()
-            val newStockId = binding.editTextStockId.text.toString()
-            val stockName = binding.editTextStockName.text.toString()
 
-            if (price == null || quantity == null || dateStr.isBlank() || stockName.isBlank() || (isNewStockMode && newStockId.isBlank())) {
+            // *** 关键修复 ***
+            val newStockId = if (isNewStockMode) binding.editTextStockId.text.toString() else ""
+            val stockName = if (isNewStockMode) binding.editTextStockName.text.toString() else stock.name
+
+
+            if (price == null || quantity == null || dateStr.isBlank() || (isNewStockMode && (newStockId.isBlank() || stockName.isBlank()))) {
                 Toast.makeText(context, "请填写所有必填字段", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
