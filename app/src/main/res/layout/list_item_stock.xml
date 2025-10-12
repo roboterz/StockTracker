@@ -110,6 +110,7 @@
             tools:text="-44.43%"
             tools:textColor="@color/negative_red" />
     </LinearLayout>
-
 </LinearLayout>
+
+
 
