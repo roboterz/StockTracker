@@ -1,8 +1,11 @@
 package com.example.stocktracker.ui
 
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
@@ -12,15 +15,19 @@ import com.example.stocktracker.R
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.databinding.*
 import com.example.stocktracker.ui.components.ChartSegment
+import com.example.stocktracker.ui.components.LineData
 import com.example.stocktracker.ui.components.formatCurrency
 import com.example.stocktracker.ui.screens.PortfolioListItem
 import com.example.stocktracker.ui.viewmodel.StockUiState
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlin.math.absoluteValue
 
 // --- View Holder Types ---
 private const val ITEM_VIEW_TYPE_HEADER = 0
-private const val ITEM_VIEW_TYPE_CHART = 1
-private const val ITEM_VIEW_TYPE_STOCK = 2
+private const val ITEM_VIEW_TYPE_PROFIT_LOSS_CHART = 1
+private const val ITEM_VIEW_TYPE_CHART = 2
+private const val ITEM_VIEW_TYPE_STOCK = 3
 
 
 class PortfolioAdapter(
@@ -30,6 +37,7 @@ class PortfolioAdapter(
     override fun getItemViewType(position: Int): Int {
         return when (getItem(position)) {
             is PortfolioListItem.Header -> ITEM_VIEW_TYPE_HEADER
+            is PortfolioListItem.ProfitLossChart -> ITEM_VIEW_TYPE_PROFIT_LOSS_CHART
             is PortfolioListItem.Chart -> ITEM_VIEW_TYPE_CHART
             is PortfolioListItem.Stock -> ITEM_VIEW_TYPE_STOCK
         }
@@ -38,6 +46,7 @@ class PortfolioAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return when (viewType) {
             ITEM_VIEW_TYPE_HEADER -> HeaderViewHolder.from(parent)
+            ITEM_VIEW_TYPE_PROFIT_LOSS_CHART -> ProfitLossChartViewHolder.from(parent)
             ITEM_VIEW_TYPE_CHART -> ChartViewHolder.from(parent)
             ITEM_VIEW_TYPE_STOCK -> StockViewHolder.from(parent)
             else -> throw ClassCastException("Unknown viewType $viewType")
@@ -49,6 +58,9 @@ class PortfolioAdapter(
             is HeaderViewHolder -> {
                 val headerItem = getItem(position) as PortfolioListItem.Header
                 holder.bind(headerItem.uiState)
+            }
+            is ProfitLossChartViewHolder -> {
+                holder.bind()
             }
             is ChartViewHolder -> {
                 val chartItem = getItem(position) as PortfolioListItem.Chart
@@ -78,25 +90,21 @@ class PortfolioAdapter(
 
             binding.header.textViewMarketValue.text = formatCurrency(totalMarketValue, false)
 
-            // 当日盈亏
             binding.header.metricDailyPl.metricLabel.text = "当日盈亏"
             binding.header.metricDailyPl.metricValue.text = formatCurrency(totalDailyPL, false)
             binding.header.metricDailyPl.metricPercent.text = String.format("%.2f%%", totalDailyPLPercent)
             updateMetricColor(binding.header.metricDailyPl.metricValue, binding.header.metricDailyPl.metricPercent, totalDailyPL)
 
-            // 持仓盈亏
             binding.header.metricHoldingPl.metricLabel.text = "持仓盈亏"
             binding.header.metricHoldingPl.metricValue.text = formatCurrency(totalHoldingPL, false)
             binding.header.metricHoldingPl.metricPercent.text = String.format("%.2f%%", totalHoldingPLPercent)
             updateMetricColor(binding.header.metricHoldingPl.metricValue, binding.header.metricHoldingPl.metricPercent, totalHoldingPL)
 
-            // 总盈亏
             binding.header.metricTotalPl.metricLabel.text = "总盈亏"
             binding.header.metricTotalPl.metricValue.text = formatCurrency(totalPL, true)
             binding.header.metricTotalPl.metricPercent.text = String.format("%s%.2f%%", if(totalPL >= 0) "+" else "", totalPLPercent.absoluteValue)
             updateMetricColor(binding.header.metricTotalPl.metricValue, binding.header.metricTotalPl.metricPercent, totalPL)
 
-            // 现金
             binding.header.metricCash.metricLabel.text = "现金"
             binding.header.metricCash.metricValue.text = formatCurrency(cash, false)
             binding.header.metricCash.metricValue.setTextColor(ContextCompat.getColor(itemView.context, android.R.color.white))
@@ -120,6 +128,158 @@ class PortfolioAdapter(
         }
     }
 
+    class ProfitLossChartViewHolder(private val binding: ListItemPortfolioPlChartBinding) : RecyclerView.ViewHolder(binding.root) {
+
+        private val sampleData: Map<Int, Pair<List<List<Float>>, List<String>>>
+        private var listenersAreSet = false
+        private val buttons: List<Button>
+        private var currentCheckedId: Int = R.id.button_1m
+
+        init {
+            buttons = listOf(
+                binding.button5d, binding.button1m, binding.button3m, binding.button6m,
+                binding.button1y, binding.button5y, binding.buttonAll
+            )
+
+            val today = LocalDate.now()
+            val monthFmt = DateTimeFormatter.ofPattern("MM-dd")
+            val yearFmt = DateTimeFormatter.ofPattern("yyyy-MM")
+            val yearsFmt = DateTimeFormatter.ofPattern("yyyy")
+
+            sampleData = mapOf(
+                R.id.button_1m to (
+                        listOf(
+                            listOf(10f, 15f, 13f, 20f, 18f, 25f, 22f, 19f, 28f, 30f, 26f, 32f, 23f, 25f, 31f, 22f, 18f, 19f, 20f, 23f, 27f, 31f, 35f, 40f, 41f, 42f, 44f, 46f, 35f, 22f),
+                            listOf(12f, 14f, 11f, 18f, 16f, 23f, 20f, 17f, 26f)
+                        ) to
+                                listOf(today.minusMonths(1).format(monthFmt), "", today.minusDays(15).format(monthFmt), "", today.format(monthFmt))
+                        ),
+                R.id.button_5d to (
+                        listOf(
+                            listOf(10f, 12f, 8f, 15f, 14f),
+                            listOf(11f, 11.5f, 9f)
+                        ) to
+                                listOf(today.minusDays(4).format(monthFmt), "", today.minusDays(2).format(monthFmt), "", today.format(monthFmt))
+                        ),
+                R.id.button_3m to (
+                        listOf(
+                            listOf(5f, 8f, 12f, 10f, 18f, 15f, 22f, 25f, 20f, 28f, 30f, 26f),
+                            listOf(7f, 9f, 13f, 11f, 19f, 16f)
+                        ) to
+                                listOf(today.minusMonths(3).format(monthFmt), "", today.minusMonths(1).minusDays(15).format(monthFmt), "", today.format(monthFmt))
+                        ),
+                R.id.button_6m to (
+                        listOf(
+                            listOf(20f, 18f, 15f, 10f, 12f, 18f, 5f, 15f, 25f, 30f, 28f, 26f),
+                            listOf(18f, 16f, 13f, 8f, 10f, 16f)
+                        ) to
+                                listOf(today.minusMonths(6).format(yearFmt), "", today.minusMonths(3).format(yearFmt), "", today.format(yearFmt))
+                        ),
+                R.id.button_1y to (
+                        listOf(
+                            listOf(30f, 35f, 32f, 28f, 25f, 20f, 18f, 15f, 22f, 28f, 30f, 26f),
+                            listOf(28f, 33f, 30f, 26f, 23f, 18f)
+                        ) to
+                                listOf(today.minusYears(1).format(yearFmt), "", today.minusMonths(6).format(yearFmt), "", today.format(yearFmt))
+                        ),
+                R.id.button_5y to (
+                        listOf(
+                            listOf(10f, 20f, 15f, 30f, 25f, 40f, 50f, 45f, 35f, 25f, 30f, 26f),
+                            listOf(12f, 22f, 17f, 32f, 27f, 42f)
+                        ) to
+                                listOf(today.minusYears(5).format(yearsFmt), "", today.minusYears(2).minusMonths(6).format(yearsFmt), "", today.format(yearsFmt))
+                        ),
+                R.id.button_all to (
+                        listOf(
+                            listOf(5f, 10f, 20f, 15f, 30f, 25f, 40f, 50f, 45f, 35f, 25f, 30f, 26f),
+                            listOf(7f, 12f, 22f, 17f, 32f, 27f)
+                        ) to
+                                listOf("开始", "", "", "", "现在")
+                        )
+            )
+        }
+
+        fun bind() {
+            if (!listenersAreSet) {
+                buttons.forEach { button ->
+                    button.setOnClickListener {
+                        handleButtonClick(it as Button)
+                    }
+                }
+                listenersAreSet = true
+            }
+            updateButtonTints()
+            updateChart(currentCheckedId)
+        }
+
+        private fun handleButtonClick(clickedButton: Button) {
+            currentCheckedId = clickedButton.id
+            updateButtonTints()
+            updateChart(currentCheckedId)
+        }
+
+        private fun updateButtonTints() {
+            val selectedColor = ColorStateList.valueOf(Color.parseColor("#2689FE"))
+            val defaultColor = ColorStateList.valueOf(Color.TRANSPARENT)
+
+            buttons.forEach { button ->
+                button.backgroundTintList = if (button.id == currentCheckedId) {
+                    selectedColor
+                } else {
+                    defaultColor
+                }
+            }
+        }
+
+
+        private fun updateChart(checkedId: Int) {
+            val (dataSets, dates) = sampleData[checkedId] ?: return
+
+            val mainLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineBlue)
+            val djiLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineOrange)
+
+            val lineDataList = mutableListOf<LineData>()
+            if (dataSets.isNotEmpty()) {
+                lineDataList.add(LineData(dataSets[0], mainLineColor))
+            }
+            if (dataSets.size > 1) {
+                lineDataList.add(LineData(dataSets[1], djiLineColor))
+            }
+
+            binding.plLineChart.setData(lineDataList)
+
+            val allPoints = dataSets.flatten()
+            if (allPoints.isNotEmpty()) {
+                val maxVal = allPoints.maxOrNull()!!
+                val minVal = allPoints.minOrNull()!!
+                val midVal = (maxVal + minVal) / 2
+                binding.plChartPercentMax.text = String.format("%+.2f%%", maxVal)
+                binding.plChartPercentMid.text = String.format("%+.2f%%", midVal)
+                binding.plChartPercentMin.text = String.format("%+.2f%%", minVal)
+            }
+
+
+            val dateLabels = listOf(binding.dateStart, binding.dateMidLeft, binding.dateMid, binding.dateMidRight, binding.dateEnd)
+            dateLabels.forEachIndexed { index, textView ->
+                if (index < dates.size && dates[index].isNotBlank()) {
+                    textView.text = dates[index]
+                    textView.visibility = View.VISIBLE
+                } else {
+                    textView.visibility = View.INVISIBLE
+                }
+            }
+            if (dates.size > 2 && dates[2].isNotBlank()) binding.dateMid.visibility = View.VISIBLE
+        }
+
+        companion object {
+            fun from(parent: ViewGroup): ProfitLossChartViewHolder {
+                val layoutInflater = LayoutInflater.from(parent.context)
+                val binding = ListItemPortfolioPlChartBinding.inflate(layoutInflater, parent, false)
+                return ProfitLossChartViewHolder(binding)
+            }
+        }
+    }
+
     class ChartViewHolder(private val binding: ListItemPortfolioChartBinding) : RecyclerView.ViewHolder(binding.root) {
         private val context = itemView.context
         private val chartColors by lazy {
@@ -133,7 +293,6 @@ class PortfolioAdapter(
             val totalMarketValue = holdings.sumOf { it.marketValue }
             if (totalMarketValue <= 0) return
 
-            // *** 关键修复：合并为“其他”的逻辑 ***
             val holdingsForChart: List<Pair<String, Double>>
             if (holdings.size > 4) {
                 val top4 = holdings.sortedByDescending { it.marketValue }.take(4)

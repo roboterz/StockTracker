@@ -107,7 +107,10 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="买入" />
+                    android:text="买入"
+                    android:textColor="@color/toggle_button_text_color"
+                    app:backgroundTint="@color/toggle_button_background_tint"
+                    />
 
                 <Button
                     android:id="@+id/button_sell"
@@ -115,7 +118,10 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="卖出" />
+                    android:text="卖出"
+                    android:textColor="@color/toggle_button_text_color"
+                    app:backgroundTint="@color/toggle_button_background_tint"
+                    />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
             <!-- Input Fields -->

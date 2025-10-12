@@ -1,18 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#FFBB86FC</color>
-    <color name="positive_green">#FF4CAF50</color>
-    <color name="negative_red">#FFF44336</color>
+    <color name="colorPrimary">#FF2689FE</color>
+    <color name="positive_green">#FF06CEA9</color>
+    <color name="negative_red">#FFD5436A</color>
 
     <!-- Chart Colors -->
-    <color name="chartColor1">#FFE57373</color>
-    <color name="chartColor2">#FF81C784</color>
-    <color name="chartColor3">#FF64B5F6</color>
-    <color name="chartColor4">#FFFFF176</color>
-    <color name="chartColor5">#FFBA68C8</color>
-    <color name="chartColor6">#FFff7043</color> <!-- Orange -->
-    <color name="chartColor7">#FF26a69a</color> <!-- Teal -->
-    <color name="chartColor8">#FF78909c</color> <!-- Blue Grey -->
-    <color name="chartColor9">#FF8d6e63</color> <!-- Brown -->
-    <color name="chartColor10">#FFec407a</color> <!-- Pink -->
+    <color name="chartColor1">#FFCE5C64</color>
+    <color name="chartColor2">#FF09A1A4</color>
+    <color name="chartColor3">#FF6C4EB2</color>
+    <color name="chartColor4">#FF4775C3</color>
+    <color name="chartColor5">#FFB58B29</color>
+    <color name="chartColor6">#FFFF8A65</color>
+    <color name="chartColor7">#FF4DD0E1</color>
+    <color name="chartColor8">#FFF06292</color>
+    <color name="chartColor9">#FFDCE775</color>
+    <color name="chartColor10">#FF9575CD</color>
+
+    <!-- Line Chart Colors -->
+    <color name="chartLineBlue">#2889FE</color>
+    <color name="chartLineOrange">#FB992A</color>
 </resources>
+

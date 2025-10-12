@@ -46,18 +46,22 @@ class PortfolioFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { uiState ->
-                    // 过滤掉持仓数量为0的股票
-                    val holdingsWithShares = uiState.holdings.filter { it.totalQuantity != 0 }
+                    // *** 关键修复：过滤掉股数为0的持仓 ***
+                    val activeHoldings = uiState.holdings.filter { it.totalQuantity != 0 }
+                    val filteredUiState = uiState.copy(holdings = activeHoldings)
+
 
                     val portfolioItems = mutableListOf<PortfolioListItem>()
-                    // 1. 添加头部 (仍然使用完整的uiState来进行总体计算)
-                    portfolioItems.add(PortfolioListItem.Header(uiState))
-                    // 2. 如果有持仓，则添加图表
-                    if (holdingsWithShares.isNotEmpty()) {
-                        portfolioItems.add(PortfolioListItem.Chart(holdingsWithShares))
+                    // 1. Add Header
+                    portfolioItems.add(PortfolioListItem.Header(filteredUiState))
+                    // 2. Add Profit/Loss Chart
+                    portfolioItems.add(PortfolioListItem.ProfitLossChart())
+                    // 3. Add Donut Chart if there are holdings
+                    if (filteredUiState.holdings.isNotEmpty()) {
+                        portfolioItems.add(PortfolioListItem.Chart(filteredUiState.holdings))
                     }
-                    // 3. 添加股票列表项
-                    holdingsWithShares.forEach { stock ->
+                    // 4. Add Stock items
+                    filteredUiState.holdings.forEach { stock ->
                         portfolioItems.add(PortfolioListItem.Stock(stock))
                     }
                     portfolioAdapter.submitList(portfolioItems)

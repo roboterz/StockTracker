@@ -1,9 +1,54 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-
+    <!-- Base application theme. -->
     <style name="Theme.StockTracker" parent="Theme.MaterialComponents.DayNight.NoActionBar">
         <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/colorPrimary</item>
+        <!-- Point the default outlined button style to our custom one -->
+        <item name="materialButtonOutlinedStyle">@style/Widget.App.Button.OutlinedButton</item>
+
+        <!-- *** 关键修复：全局应用 Noto Sans CJK 字体 *** -->
+    <!-- <item name="android:fontFamily">@font/noto_sans_cjk</item> -->
+    <!-- <item name="fontFamily">@font/noto_sans_cjk</item> -->
     </style>
+
+<!-- 为圆角按钮新增的Shape Appearance样式 -->
+    <style name="ShapeAppearance.App.SmallComponent" parent="ShapeAppearance.MaterialComponents.SmallComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">6dp</item>
+    </style>
+
+    <!-- Custom base style for outlined buttons -->
+    <style name="Widget.App.Button.OutlinedButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="strokeWidth">0dp</item>
+        <item name="android:textColor">#FFFFFF</item>
+        <item name="rippleColor">#33FFFFFF</item>
+        <!-- 应用圆角样式 -->
+        <item name="shapeAppearance">@style/ShapeAppearance.App.SmallComponent</item>
+    </style>
+
+    <!-- Custom style for the small time-range buttons -->
+    <style name="Widget.App.Button.OutlinedButton.Small" parent="Widget.App.Button.OutlinedButton">
+        <item name="android:minHeight">36dp</item>
+        <item name="android:paddingLeft">8dp</item>
+        <item name="android:paddingRight">8dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+    </style>
+
+    <!-- Custom style for the even smaller, compact time-range buttons -->
+    <style name="Widget.App.Button.OutlinedButton.ExtraSmall" parent="Widget.App.Button.OutlinedButton">
+        <item name="android:minHeight">36dp</item>
+        <item name="android:paddingLeft">1dp</item>  <!-- Reduced padding -->
+        <item name="android:paddingRight">1dp</item> <!-- Reduced padding -->
+        <item name="android:minWidth">48dp</item>      <!-- Set a minimum width -->
+        <item name="android:insetLeft">8dp</item>
+        <item name="android:insetRight">8dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+    </style>
+
 </resources>
+

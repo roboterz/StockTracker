@@ -12,16 +12,16 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="@android:color/darker_gray"
-        android:textSize="14sp"
+        android:textSize="11sp"
         tools:text="当日盈亏" />
 
     <TextView
         android:id="@+id/metric_value"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
-        android:textSize="16sp"
-        android:textStyle="bold"
+        android:layout_marginTop="2dp"
+        android:textSize="14sp"
+        android:textStyle="normal"
         tools:text="+6.45"
         tools:textColor="@color/positive_green" />
 
@@ -29,7 +29,7 @@
         android:id="@+id/metric_percent"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textSize="14sp"
+        android:textSize="11sp"
         tools:text="+0.18%"
         tools:textColor="@color/positive_green" />
 </LinearLayout>
