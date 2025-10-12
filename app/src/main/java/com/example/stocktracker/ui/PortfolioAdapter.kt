@@ -131,32 +131,42 @@ class PortfolioAdapter(
 
         fun bind(holdings: List<StockHolding>) {
             val totalMarketValue = holdings.sumOf { it.marketValue }
-            if (totalMarketValue > 0) {
-                val segments = holdings.mapIndexed { index, holding ->
-                    ChartSegment(
-                        holding.marketValue.toFloat(),
-                        chartColors[index % chartColors.size]
-                    )
-                }
-                binding.donutChart.setData(segments)
-                updateLegend(holdings, totalMarketValue)
+            if (totalMarketValue <= 0) return
+
+            // *** 关键修复：合并为“其他”的逻辑 ***
+            val holdingsForChart: List<Pair<String, Double>>
+            if (holdings.size > 4) {
+                val top4 = holdings.sortedByDescending { it.marketValue }.take(4)
+                val othersValue = holdings.drop(4).sumOf { it.marketValue }
+                holdingsForChart = top4.map { Pair(it.name, it.marketValue) } + Pair("其他", othersValue)
+            } else {
+                holdingsForChart = holdings.map { Pair(it.name, it.marketValue) }
             }
+
+            val segments = holdingsForChart.mapIndexed { index, data ->
+                ChartSegment(
+                    data.second.toFloat(),
+                    chartColors[index % chartColors.size]
+                )
+            }
+            binding.donutChart.setData(segments)
+            updateLegend(holdingsForChart, totalMarketValue)
         }
 
-        private fun updateLegend(holdings: List<StockHolding>, totalMarketValue: Double) {
+        private fun updateLegend(holdingsData: List<Pair<String, Double>>, totalMarketValue: Double) {
             binding.legendLayout.removeAllViews()
-            holdings.forEachIndexed { index, holding ->
+            holdingsData.forEachIndexed { index, data ->
+                val percentage = (data.second / totalMarketValue) * 100
                 val legendItem = createLegendItem(
                     colorResId = chartColors[index % chartColors.size],
-                    name = holding.name,
-                    percentage = (holding.marketValue / totalMarketValue) * 100
+                    name = data.first,
+                    percentage = percentage
                 )
                 binding.legendLayout.addView(legendItem)
             }
         }
 
         private fun createLegendItem(colorResId: Int, name: String, percentage: Double): View {
-            // Re-inflate or programmatically create legend item view
             val inflater = LayoutInflater.from(context)
             val itemBinding = ListItemLegendBinding.inflate(inflater, null, false)
             itemBinding.indicator.background.setTint(ContextCompat.getColor(context, colorResId))
@@ -176,24 +186,15 @@ class PortfolioAdapter(
 
     class StockViewHolder(private val binding: ListItemStockBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(stock: StockHolding, onStockClicked: (StockHolding) -> Unit) {
-            // The reference to 'textViewInitial' was removed because the new layout
-            // in list_item_stock.xml no longer contains that circular view.
             itemView.setOnClickListener { onStockClicked(stock) }
 
-            // Column 1
             binding.textViewName.text = stock.name
             binding.textViewTicker.text = stock.ticker
-
-            // Column 2
             binding.textViewMarketValue.text = formatCurrency(stock.marketValue, false)
             binding.textViewTotalCost.text = "(USD)${formatCurrency(stock.totalCost - stock.totalSoldValue, false)}"
-
-            // Column 3
             binding.textViewDailyPlValue.text = formatCurrency(stock.dailyPL, true)
             binding.textViewDailyPlPercent.text = String.format("%.2f%%", stock.dailyPLPercent)
             updatePlColor(binding.textViewDailyPlValue, binding.textViewDailyPlPercent, stock.dailyPL)
-
-            // Column 4
             binding.textViewTotalPlValue.text = formatCurrency(stock.totalPL, true)
             binding.textViewTotalPlPercent.text = String.format("%.2f%%", stock.totalPLPercent)
             updatePlColor(binding.textViewTotalPlValue, binding.textViewTotalPlPercent, stock.totalPL)
