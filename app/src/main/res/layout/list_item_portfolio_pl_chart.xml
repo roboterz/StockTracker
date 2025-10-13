@@ -5,8 +5,9 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:background="@android:color/black"
     android:paddingHorizontal="16dp"
-    android:paddingTop="24dp">
+    android:paddingTop="18dp">
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -19,7 +20,7 @@
             android:layout_centerVertical="true"
             android:text="盈亏金额"
             android:textColor="@android:color/white"
-            android:textSize="16sp"
+            android:textSize="17sp"
             android:textStyle="bold" />
 
         <com.google.android.material.button.MaterialButtonToggleGroup
@@ -44,7 +45,7 @@
                 android:paddingRight="6dp"
                 android:text="总盈亏率"
                 android:textColor="@color/pl_toggle_button_text_color"
-                android:textSize="11sp" />
+                android:textSize="12sp" />
 
             <Button
                 android:id="@+id/button_pl_amount"
@@ -59,7 +60,7 @@
                 android:paddingRight="6dp"
                 android:text="总盈亏"
                 android:textColor="@color/pl_toggle_button_text_color"
-                android:textSize="11sp" />
+                android:textSize="12sp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
     </RelativeLayout>
 
@@ -82,8 +83,8 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
             android:text="总盈亏率"
-            android:textColor="@android:color/white"
-            android:textSize="11sp" />
+            android:textColor="#bbb"
+            android:textSize="12sp" />
 
         <View
             android:layout_width="6dp"
@@ -97,8 +98,8 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
             android:text="DJI"
-            android:textColor="@android:color/white"
-            android:textSize="11sp" />
+            android:textColor="#bbb"
+            android:textSize="12sp" />
     </LinearLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
@@ -119,19 +120,19 @@
             android:id="@+id/pl_chart_percent_max"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="11sp"
+            android:textColor="#bbb"
+            android:textSize="12sp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@id/pl_line_chart"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="1dp"
             tools:text="+26.90%" />
 
         <TextView
             android:id="@+id/pl_chart_percent_mid"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="11sp"
+            android:textColor="#bbb"
+            android:textSize="12sp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="@id/pl_line_chart"
             app:layout_constraintBottom_toBottomOf="@id/pl_line_chart"
@@ -141,11 +142,11 @@
             android:id="@+id/pl_chart_percent_min"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="11sp"
+            android:textColor="#bbb"
+            android:textSize="12sp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintBottom_toBottomOf="@id/pl_line_chart"
-            android:layout_marginBottom="16dp"
+            android:layout_marginBottom="6dp"
             tools:text="-25.96%" />
 
         <androidx.constraintlayout.widget.ConstraintLayout
@@ -225,7 +226,7 @@
         android:id="@+id/toggle_group_time_range"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="0dp"
         android:orientation="horizontal">
 
         <Button
@@ -235,6 +236,7 @@
             android:layout_weight="1"
             android:text="5日"
             android:textColor="@color/toggle_button_text_color"
+            android:textSize="14sp"
             app:backgroundTint="@color/toggle_button_background_tint" />
         <Button
             android:id="@+id/button_1m"
@@ -243,6 +245,7 @@
             android:layout_weight="1"
             android:text="1月"
             android:textColor="@color/toggle_button_text_color"
+            android:textSize="14sp"
             app:backgroundTint="@color/toggle_button_background_tint" />
         <Button
             android:id="@+id/button_3m"
@@ -251,6 +254,7 @@
             android:layout_weight="1"
             android:text="3月"
             android:textColor="@color/toggle_button_text_color"
+            android:textSize="14sp"
             app:backgroundTint="@color/toggle_button_background_tint" />
         <Button
             android:id="@+id/button_6m"
@@ -259,6 +263,7 @@
             android:layout_weight="1"
             android:text="6月"
             android:textColor="@color/toggle_button_text_color"
+            android:textSize="14sp"
             app:backgroundTint="@color/toggle_button_background_tint" />
         <Button
             android:id="@+id/button_1y"
@@ -267,6 +272,7 @@
             android:layout_weight="1"
             android:text="1年"
             android:textColor="@color/toggle_button_text_color"
+            android:textSize="14sp"
             app:backgroundTint="@color/toggle_button_background_tint" />
         <Button
             android:id="@+id/button_5y"
@@ -275,6 +281,7 @@
             android:layout_weight="1"
             android:text="5年"
             android:textColor="@color/toggle_button_text_color"
+            android:textSize="14sp"
             app:backgroundTint="@color/toggle_button_background_tint" />
         <Button
             android:id="@+id/button_all"
@@ -283,6 +290,7 @@
             android:layout_weight="1"
             android:text="全部"
             android:textColor="@color/toggle_button_text_color"
+            android:textSize="14sp"
             app:backgroundTint="@color/toggle_button_background_tint" />
 
     </LinearLayout>

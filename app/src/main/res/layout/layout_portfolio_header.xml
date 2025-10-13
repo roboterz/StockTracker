@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="16dp"
-    android:layout_marginTop="16dp"
+    android:layout_marginTop="0dp"
     app:cardBackgroundColor="#2E2E48"
     app:cardCornerRadius="16dp"
     app:cardElevation="0dp">
@@ -14,16 +14,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@drawable/background"
-        android:padding="20dp">
+        android:padding="23dp">
 
         <TextView
             android:id="@+id/label_market_value"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="总市值 (USD)"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="12sp"
-            android:textStyle="bold"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:textStyle="normal"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
@@ -32,7 +32,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@android:color/white"
-            android:textSize="35sp"
+            android:textSize="38sp"
             android:textStyle="normal"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/label_market_value"
@@ -42,7 +42,7 @@
             android:id="@+id/metrics_layout"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="10dp"
             android:orientation="horizontal"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"

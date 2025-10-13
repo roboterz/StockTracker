@@ -19,8 +19,8 @@ class DonutChartView @JvmOverloads constructor(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val rectF = RectF() // Reusable rect
     private var segments = emptyList<ChartSegment>()
-    private val normalStrokeWidth = 30f
-    private val wideStrokeWidth = 40f // 为最宽的色块设置更宽的笔触
+    private val normalStrokeWidth = 25f
+    private val wideStrokeWidth = 35f // 为最宽的色块设置更宽的笔触
 
     init {
         paint.style = Paint.Style.STROKE
