@@ -18,6 +18,6 @@
 
     <!-- Line Chart Colors -->
     <color name="chartLineBlue">#2889FE</color>
-    <color name="chartLineOrange">#FB992A</color>
+    <color name="chartLineOrange">#FFAA29</color>
 </resources>
 
