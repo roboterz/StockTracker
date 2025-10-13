@@ -19,6 +19,7 @@ import com.example.stocktracker.ui.components.LineData
 import com.example.stocktracker.ui.components.formatCurrency
 import com.example.stocktracker.ui.screens.PortfolioListItem
 import com.example.stocktracker.ui.viewmodel.StockUiState
+import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.absoluteValue
@@ -330,7 +331,9 @@ class PortfolioAdapter(
             val itemBinding = ListItemLegendBinding.inflate(inflater, null, false)
             itemBinding.indicator.background.setTint(ContextCompat.getColor(context, colorResId))
             itemBinding.textViewName.text = name
-            itemBinding.textViewPercentage.text = String.format("%.2f%%", percentage)
+            // *** 关键修复：使用DecimalFormat来移除末尾的0 ***
+            val df = DecimalFormat("0.######")
+            itemBinding.textViewPercentage.text = "${df.format(percentage)}%"
             return itemBinding.root
         }
 

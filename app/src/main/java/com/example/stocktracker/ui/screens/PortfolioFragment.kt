@@ -4,6 +4,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -37,6 +40,17 @@ class PortfolioFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+            binding.appBarLayout.updatePadding(top = systemBars.top)
+
+            binding.recyclerViewStocks.updatePadding(bottom = systemBars.bottom)
+
+            insets
+        }
+
+
         val portfolioAdapter = PortfolioAdapter { stock ->
             viewModel.selectStock(stock.id)
             findNavController().navigate(R.id.action_portfolioFragment_to_stockDetailFragment)
@@ -46,8 +60,8 @@ class PortfolioFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { uiState ->
-                    // *** 关键修复：过滤掉股数为0的持仓 ***
-                    val activeHoldings = uiState.holdings.filter { it.totalQuantity != 0 }
+                    // 过滤掉股数为0的持仓
+                    val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
                     val filteredUiState = uiState.copy(holdings = activeHoldings)
 
 
