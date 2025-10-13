@@ -198,7 +198,7 @@ class PortfolioAdapter(
                             listOf(5f, 10f, 20f, 15f, 30f, 25f, 40f, 50f, 45f, 35f, 25f, 30f, 26f),
                             listOf(7f, 12f, 22f, 17f, 32f, 27f)
                         ) to
-                                listOf("Start", "", "", "", "Now")
+                                listOf("开始", "", "", "", "现在")
                         )
             )
         }
@@ -324,7 +324,7 @@ class PortfolioAdapter(
             if (holdings.size > 4) {
                 val top4 = holdings.sortedByDescending { it.marketValue }.take(4)
                 val othersValue = holdings.drop(4).sumOf { it.marketValue }
-                holdingsForChart = top4.map { Pair(it.name, it.marketValue) } + Pair("Other", othersValue)
+                holdingsForChart = top4.map { Pair(it.name, it.marketValue) } + Pair("其他", othersValue)
             } else {
                 holdingsForChart = holdings.map { Pair(it.name, it.marketValue) }
             }
