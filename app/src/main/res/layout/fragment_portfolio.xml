@@ -9,14 +9,16 @@
     tools:context=".ui.screens.PortfolioFragment">
 
     <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/app_bar_layout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:background="#1A1C23"
+            android:background="#000000"
             app:menu="@menu/portfolio_menu"
             app:title="陈明"
             app:titleTextColor="@android:color/white" />
@@ -28,6 +30,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        tools:listitem="@layout/list_item_stock_header" />
+        tools:listitem="@layout/list_item_stock" />
 
 </LinearLayout>
+
