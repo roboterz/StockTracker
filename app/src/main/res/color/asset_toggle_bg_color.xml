@@ -3,5 +3,5 @@
     <!-- 按钮被选中时的颜色 -->
     <item android:color="#071B34" android:state_selected="true" />
     <!-- 按钮未被选中时的颜色 -->
-    <item android:color="#272727" />
+    <item android:color="#161616" />
 </selector>
