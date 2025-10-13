@@ -134,13 +134,16 @@ class PortfolioAdapter(
         private val sampleData: Map<Int, Pair<List<List<Float>>, List<String>>>
         private var listenersAreSet = false
         private val timeRangeButtons: List<Button>
+        private val plTypeButtons: List<Button>
         private var currentTimeRangeId: Int = R.id.button_1m
+        private var currentPlTypeId: Int = R.id.button_pl_rate
 
         init {
             timeRangeButtons = listOf(
                 binding.button5d, binding.button1m, binding.button3m, binding.button6m,
                 binding.button1y, binding.button5y, binding.buttonAll
             )
+            plTypeButtons = listOf(binding.buttonPlRate, binding.buttonPlAmount)
 
             val today = LocalDate.now()
             val monthFmt = DateTimeFormatter.ofPattern("MM-dd")
@@ -205,24 +208,37 @@ class PortfolioAdapter(
                 timeRangeButtons.forEach { button ->
                     button.setOnClickListener { handleTimeRangeClick(it as Button) }
                 }
+                plTypeButtons.forEach { button ->
+                    button.setOnClickListener { handlePlTypeClick(it as Button) }
+                }
                 listenersAreSet = true
             }
-            updateTimeRangeButtonTints()
+            updateButtonTints()
             updateChart(currentTimeRangeId)
         }
 
         private fun handleTimeRangeClick(clickedButton: Button) {
             currentTimeRangeId = clickedButton.id
-            updateTimeRangeButtonTints()
+            updateButtonTints()
             updateChart(currentTimeRangeId)
         }
 
-        private fun updateTimeRangeButtonTints() {
+        private fun handlePlTypeClick(clickedButton: Button) {
+            currentPlTypeId = clickedButton.id
+            updateButtonTints()
+        }
+
+        private fun updateButtonTints() {
             val selectedColor = ColorStateList.valueOf(Color.parseColor("#2689FE"))
-            val defaultColor = ColorStateList.valueOf(Color.TRANSPARENT)
+            val selectedPlColor = ColorStateList.valueOf(Color.parseColor("#272727"))
+            val defaultTimeColor = ColorStateList.valueOf(Color.TRANSPARENT)
+            val defaultPlColor = ColorStateList.valueOf(Color.parseColor("#161616"))
 
             timeRangeButtons.forEach { button ->
-                button.backgroundTintList = if (button.id == currentTimeRangeId) selectedColor else defaultColor
+                button.backgroundTintList = if (button.id == currentTimeRangeId) selectedColor else defaultTimeColor
+            }
+            plTypeButtons.forEach { button ->
+                button.backgroundTintList = if (button.id == currentPlTypeId) selectedPlColor else defaultPlColor
             }
         }
 
@@ -299,6 +315,7 @@ class PortfolioAdapter(
                 handleAssetButtonClick(binding.buttonHoldingsDetail)
                 listenersAreSet = true
             }
+
 
             val totalMarketValue = holdings.sumOf { it.marketValue }
             if (totalMarketValue <= 0) return
