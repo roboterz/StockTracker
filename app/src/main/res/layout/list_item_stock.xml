@@ -4,113 +4,125 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?android:attr/selectableItemBackground"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:paddingHorizontal="16dp"
-    android:paddingVertical="12dp">
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp">
 
-    <!-- Column 1: Name & Ticker -->
     <LinearLayout
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_weight="2.2"
-        android:orientation="vertical">
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingVertical="12dp">
 
-        <TextView
-            android:id="@+id/text_view_name"
-            android:layout_width="wrap_content"
+        <!-- Column 1: Name & Ticker -->
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="@android:color/white"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            tools:text="Sharplink G..." />
+            android:layout_weight="2.2"
+            android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/text_view_ticker"
-            android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/text_view_name"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@android:color/white"
+                android:textSize="15sp"
+                android:textStyle="normal"
+                tools:text="Sharplink G..." />
+
+            <TextView
+                android:id="@+id/text_view_ticker"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/darker_gray"
+                android:textSize="13sp"
+                tools:text="NASDAQ:SBET" />
+        </LinearLayout>
+
+        <!-- Column 2: Market Value & Total Cost -->
+        <LinearLayout
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="12sp"
-            tools:text="NASDAQ:SBET" />
+            android:layout_weight="1.8"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/text_view_market_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/white"
+                android:textSize="15sp"
+                tools:text="10,974.00" />
+
+            <TextView
+                android:id="@+id/text_view_total_cost"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/darker_gray"
+                android:textSize="13sp"
+                tools:text="(USD)20,643.20" />
+        </LinearLayout>
+
+        <!-- Column 3: Daily P/L -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/text_view_daily_pl_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                tools:text="-677.00"
+                tools:textColor="@color/negative_red" />
+
+            <TextView
+                android:id="@+id/text_view_daily_pl_percent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                tools:text="-5.81%"
+                tools:textColor="@color/negative_red" />
+        </LinearLayout>
+
+        <!-- Column 4: Total P/L -->
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:gravity="end"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/text_view_total_pl_value"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                tools:text="-9,171.70"
+                tools:textColor="@color/negative_red" />
+
+            <TextView
+                android:id="@+id/text_view_total_pl_percent"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="13sp"
+                tools:text="-44.43%"
+                tools:textColor="@color/negative_red" />
+        </LinearLayout>
+
     </LinearLayout>
 
-    <!-- Column 2: Market Value & Total Cost -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1.8"
-        android:gravity="end"
-        android:orientation="vertical">
+    <!-- *** 关键修复：在底部添加分割线 *** -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="#22FFFFFF" />
 
-        <TextView
-            android:id="@+id/text_view_market_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@android:color/white"
-            android:textSize="16sp"
-            tools:text="10,974.00" />
-
-        <TextView
-            android:id="@+id/text_view_total_cost"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textColor="@android:color/darker_gray"
-            android:textSize="12sp"
-            tools:text="(USD)20,643.20" />
-    </LinearLayout>
-
-    <!-- Column 3: Daily P/L -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1.5"
-        android:gravity="end"
-        android:orientation="vertical">
-
-        <TextView
-            android:id="@+id/text_view_daily_pl_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="16sp"
-            tools:text="-677.00"
-            tools:textColor="@color/negative_red" />
-
-        <TextView
-            android:id="@+id/text_view_daily_pl_percent"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="12sp"
-            tools:text="-5.81%"
-            tools:textColor="@color/negative_red" />
-    </LinearLayout>
-
-    <!-- Column 4: Total P/L -->
-    <LinearLayout
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_weight="1.5"
-        android:gravity="end"
-        android:orientation="vertical">
-
-        <TextView
-            android:id="@+id/text_view_total_pl_value"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="16sp"
-            tools:text="-9,171.70"
-            tools:textColor="@color/negative_red" />
-
-        <TextView
-            android:id="@+id/text_view_total_pl_percent"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="12sp"
-            tools:text="-44.43%"
-            tools:textColor="@color/negative_red" />
-    </LinearLayout>
 </LinearLayout>
-
-
 
