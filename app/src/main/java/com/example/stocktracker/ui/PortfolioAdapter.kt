@@ -133,14 +133,17 @@ class PortfolioAdapter(
 
         private val sampleData: Map<Int, Pair<List<List<Float>>, List<String>>>
         private var listenersAreSet = false
-        private val buttons: List<Button>
-        private var currentCheckedId: Int = R.id.button_1m
+        private val timeRangeButtons: List<Button>
+        private val plTypeButtons: List<Button>
+        private var currentTimeRangeId: Int = R.id.button_1m
+        private var currentPlTypeId: Int = R.id.button_pl_rate
 
         init {
-            buttons = listOf(
+            timeRangeButtons = listOf(
                 binding.button5d, binding.button1m, binding.button3m, binding.button6m,
                 binding.button1y, binding.button5y, binding.buttonAll
             )
+            plTypeButtons = listOf(binding.buttonPlRate, binding.buttonPlAmount)
 
             val today = LocalDate.now()
             val monthFmt = DateTimeFormatter.ofPattern("MM-dd")
@@ -195,43 +198,49 @@ class PortfolioAdapter(
                             listOf(5f, 10f, 20f, 15f, 30f, 25f, 40f, 50f, 45f, 35f, 25f, 30f, 26f),
                             listOf(7f, 12f, 22f, 17f, 32f, 27f)
                         ) to
-                                listOf("开始", "", "", "", "现在")
+                                listOf("Start", "", "", "", "Now")
                         )
             )
         }
 
         fun bind() {
             if (!listenersAreSet) {
-                buttons.forEach { button ->
-                    button.setOnClickListener {
-                        handleButtonClick(it as Button)
-                    }
+                timeRangeButtons.forEach { button ->
+                    button.setOnClickListener { handleTimeRangeClick(it as Button) }
+                }
+                plTypeButtons.forEach { button ->
+                    button.setOnClickListener { handlePlTypeClick(it as Button) }
                 }
                 listenersAreSet = true
             }
             updateButtonTints()
-            updateChart(currentCheckedId)
+            updateChart(currentTimeRangeId)
         }
 
-        private fun handleButtonClick(clickedButton: Button) {
-            currentCheckedId = clickedButton.id
+        private fun handleTimeRangeClick(clickedButton: Button) {
+            currentTimeRangeId = clickedButton.id
             updateButtonTints()
-            updateChart(currentCheckedId)
+            updateChart(currentTimeRangeId)
+        }
+
+        private fun handlePlTypeClick(clickedButton: Button) {
+            currentPlTypeId = clickedButton.id
+            updateButtonTints()
         }
 
         private fun updateButtonTints() {
             val selectedColor = ColorStateList.valueOf(Color.parseColor("#2689FE"))
-            val defaultColor = ColorStateList.valueOf(Color.TRANSPARENT)
+            val selectedPlColor = ColorStateList.valueOf(Color.parseColor("#272727"))
+            val defaultTimeColor = ColorStateList.valueOf(Color.TRANSPARENT)
+            val defaultPlColor = ColorStateList.valueOf(Color.parseColor("#161616"))
 
-            buttons.forEach { button ->
-                button.backgroundTintList = if (button.id == currentCheckedId) {
-                    selectedColor
-                } else {
-                    defaultColor
-                }
+            timeRangeButtons.forEach { button ->
+                button.backgroundTintList = if (button.id == currentTimeRangeId) selectedColor else defaultTimeColor
+            }
+            plTypeButtons.forEach { button ->
+                button.backgroundTintList = if (button.id == currentPlTypeId) selectedPlColor else defaultPlColor
             }
         }
-
 
         private fun updateChart(checkedId: Int) {
             val (dataSets, dates) = sampleData[checkedId] ?: return
@@ -258,7 +267,6 @@ class PortfolioAdapter(
                 binding.plChartPercentMid.text = String.format("%+.2f%%", midVal)
                 binding.plChartPercentMin.text = String.format("%+.2f%%", minVal)
             }
-
 
             val dateLabels = listOf(binding.dateStart, binding.dateMidLeft, binding.dateMid, binding.dateMidRight, binding.dateEnd)
             dateLabels.forEachIndexed { index, textView ->
@@ -290,7 +298,25 @@ class PortfolioAdapter(
             )
         }
 
+        private val assetButtons: List<Button>
+        private var listenersAreSet = false
+
+        init {
+            assetButtons = listOf(binding.buttonHoldingsDetail, binding.buttonClosedPositionsDetail, binding.buttonCashDetail)
+        }
+
         fun bind(holdings: List<StockHolding>) {
+            if (!listenersAreSet) {
+                assetButtons.forEach { button ->
+                    button.setOnClickListener {
+                        handleAssetButtonClick(it as Button)
+                    }
+                }
+                handleAssetButtonClick(binding.buttonHoldingsDetail)
+                listenersAreSet = true
+            }
+
+
             val totalMarketValue = holdings.sumOf { it.marketValue }
             if (totalMarketValue <= 0) return
 
@@ -298,7 +324,7 @@ class PortfolioAdapter(
             if (holdings.size > 4) {
                 val top4 = holdings.sortedByDescending { it.marketValue }.take(4)
                 val othersValue = holdings.drop(4).sumOf { it.marketValue }
-                holdingsForChart = top4.map { Pair(it.name, it.marketValue) } + Pair("其他", othersValue)
+                holdingsForChart = top4.map { Pair(it.name, it.marketValue) } + Pair("Other", othersValue)
             } else {
                 holdingsForChart = holdings.map { Pair(it.name, it.marketValue) }
             }
@@ -311,6 +337,11 @@ class PortfolioAdapter(
             }
             binding.donutChart.setData(segments)
             updateLegend(holdingsForChart, totalMarketValue)
+        }
+
+        private fun handleAssetButtonClick(clickedButton: Button) {
+            assetButtons.forEach { it.isSelected = false }
+            clickedButton.isSelected = true
         }
 
         private fun updateLegend(holdingsData: List<Pair<String, Double>>, totalMarketValue: Double) {
@@ -331,7 +362,6 @@ class PortfolioAdapter(
             val itemBinding = ListItemLegendBinding.inflate(inflater, null, false)
             itemBinding.indicator.background.setTint(ContextCompat.getColor(context, colorResId))
             itemBinding.textViewName.text = name
-            // *** 关键修复：使用DecimalFormat来移除末尾的0 ***
             val df = DecimalFormat("0.######")
             itemBinding.textViewPercentage.text = "${df.format(percentage)}%"
             return itemBinding.root
