@@ -19,10 +19,12 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="#000000"
-            app:navigationIconTint="@android:color/white"
             app:menu="@menu/portfolio_menu"
-            app:title="ㄑ  陈明"
-            app:titleTextColor="@android:color/white" />
+            app:navigationIcon="@drawable/ic_arrow_back"
+            app:navigationIconTint="@android:color/white"
+            app:title="陈明"
+            app:titleTextColor="@android:color/white"
+            app:contentInsetStartWithNavigation="0dp"/>
 
     </com.google.android.material.appbar.AppBarLayout>
 
