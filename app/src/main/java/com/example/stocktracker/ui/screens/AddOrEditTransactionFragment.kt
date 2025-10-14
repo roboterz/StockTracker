@@ -5,11 +5,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import com.example.stocktracker.R
 import com.example.stocktracker.data.Transaction
 import com.example.stocktracker.data.TransactionType
 import com.example.stocktracker.databinding.FragmentAddOrEditTransactionBinding
@@ -42,6 +46,16 @@ class AddOrEditTransactionFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+            binding.addStockActivity.updatePadding(top = systemBars.top)
+            binding.addStockActivity.updatePadding(bottom = systemBars.bottom)
+
+            insets
+        }
+
+
         val transactionToEdit = viewModel.uiState.value.transactionToEdit
         setupUI(transactionToEdit)
         setupListeners(transactionToEdit)
@@ -57,7 +71,6 @@ class AddOrEditTransactionFragment : Fragment() {
         binding.toolbar.title = if (isEditMode) "编辑交易" else "添加交易"
         binding.toolbar.setNavigationOnClickListener { findNavController().popBackStack() }
 
-        // 根据模式切换UI
         binding.layoutStockInfo.isVisible = !isNewStockMode
         binding.textInputLayoutStockId.isVisible = isNewStockMode
         binding.textInputLayoutStockName.isVisible = isNewStockMode
@@ -95,7 +108,6 @@ class AddOrEditTransactionFragment : Fragment() {
             val fee = binding.editTextFee.text.toString().toDoubleOrNull() ?: 0.0
             val dateStr = binding.editTextDate.text.toString()
 
-            // *** 关键修复 ***
             val newStockId = if (isNewStockMode) binding.editTextStockId.text.toString() else ""
             val stockName = if (isNewStockMode) binding.editTextStockName.text.toString() else stock.name
 
@@ -120,6 +132,17 @@ class AddOrEditTransactionFragment : Fragment() {
         binding.buttonDelete.setOnClickListener {
             transactionToEdit?.id?.let { id ->
                 viewModel.deleteTransaction(id)
+            }
+        }
+
+        // *** 关键修复：防止按钮被取消选中 ***
+        binding.buttonToggleGroup.addOnButtonCheckedListener { group, checkedId, isChecked ->
+            if (!isChecked) {
+                // 如果用户试图取消选中一个按钮，而这将导致没有任何按钮被选中，
+                // 那么我们立即重新选中该按钮。
+                if (group.checkedButtonId == View.NO_ID) {
+                    group.check(checkedId)
+                }
             }
         }
     }

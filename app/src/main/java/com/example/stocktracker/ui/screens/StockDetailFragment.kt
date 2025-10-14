@@ -6,6 +6,9 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -20,6 +23,7 @@ import com.example.stocktracker.ui.components.formatCurrency
 import com.example.stocktracker.ui.viewmodel.StockViewModel
 import com.example.stocktracker.ui.viewmodel.StockViewModelFactory
 import kotlinx.coroutines.launch
+import java.text.DecimalFormat
 import kotlin.math.absoluteValue
 
 class StockDetailFragment : Fragment() {
@@ -41,6 +45,16 @@ class StockDetailFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        // *** 关键修复：处理窗口边衬区 ***
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+            binding.detailLayout.updatePadding(top = systemBars.top)
+            binding.detailLayout.updatePadding(bottom = systemBars.bottom)
+
+            insets
+        }
 
         val transactionAdapter = TransactionAdapter { transaction ->
             viewModel.prepareEditTransaction(transaction.id)
@@ -81,31 +95,26 @@ class StockDetailFragment : Fragment() {
         binding.toolbar.title = stock.name
         binding.header.textViewMarketValue.text = formatCurrency(stock.marketValue, false)
 
-        // 当日盈亏
         binding.header.metricDailyPl.metricLabel.text = "当日盈亏"
         binding.header.metricDailyPl.metricValue.text = formatCurrency(stock.dailyPL, true)
         binding.header.metricDailyPl.metricPercent.text = String.format("%s%.2f%%", if(stock.dailyPL >= 0) "+" else "", stock.dailyPLPercent.absoluteValue)
         updateMetricColor(binding.header.metricDailyPl.metricValue, binding.header.metricDailyPl.metricPercent, stock.dailyPL)
 
-        // 持仓盈亏
         binding.header.metricHoldingPl.metricLabel.text = "持仓盈亏"
         binding.header.metricHoldingPl.metricValue.text = formatCurrency(stock.holdingPL, true)
         binding.header.metricHoldingPl.metricPercent.text = String.format("%s%.2f%%", if(stock.holdingPL >= 0) "+" else "", stock.holdingPLPercent.absoluteValue)
         updateMetricColor(binding.header.metricHoldingPl.metricValue, binding.header.metricHoldingPl.metricPercent, stock.holdingPL)
 
-        // 总盈亏
         binding.header.metricTotalPl.metricLabel.text = "总盈亏"
         binding.header.metricTotalPl.metricValue.text = formatCurrency(stock.totalPL, true)
         binding.header.metricTotalPl.metricPercent.text = String.format("%s%.2f%%", if(stock.totalPL >= 0) "+" else "", stock.totalPLPercent.absoluteValue)
         updateMetricColor(binding.header.metricTotalPl.metricValue, binding.header.metricTotalPl.metricPercent, stock.totalPL)
 
-        // 累计分红
         binding.header.metricDividend.metricLabel.text = "累计分红"
         binding.header.metricDividend.metricValue.text = formatCurrency(stock.cumulativeDividend, false)
         binding.header.metricDividend.metricValue.setTextColor(ContextCompat.getColor(requireContext(), android.R.color.white))
-        binding.header.metricDividend.metricPercent.visibility = View.GONE // 分红没有百分比
+        binding.header.metricDividend.metricPercent.visibility = View.GONE
 
-        // 底部信息行
         binding.header.layoutInfoCurrentPrice.infoLabel.text = "当前价格"
         binding.header.layoutInfoCurrentPrice.infoValue.text = stock.currentPrice.toString()
 
@@ -128,6 +137,7 @@ class StockDetailFragment : Fragment() {
         valueView.setTextColor(color)
         percentView.setTextColor(color)
     }
+
 
     override fun onDestroyView() {
         super.onDestroyView()
