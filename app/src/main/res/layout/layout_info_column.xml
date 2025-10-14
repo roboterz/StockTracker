@@ -22,5 +22,5 @@
         android:textColor="@android:color/white"
         android:textSize="16sp"
         android:textStyle="bold"
-        tools:text="177.56" />
+        tools:text="18877.56" />
 </LinearLayout>

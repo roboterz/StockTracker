@@ -13,11 +13,14 @@
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
         android:background="#000000"
+        app:contentInsetStartWithNavigation="0dp"
         app:menu="@menu/detail_menu"
         app:navigationIcon="@drawable/ic_arrow_back"
         app:navigationIconTint="@android:color/white"
+        app:subtitleTextColor="@android:color/darker_gray"
         app:titleTextColor="@android:color/white"
-        tools:title="英伟达" />
+        tools:subtitle="MARA NASDAQ"
+        tools:title="MARA Holdings Inc" />
 
     <!-- Include header layout -->
     <include
@@ -28,12 +31,58 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="32dp"
         android:layout_marginBottom="8dp"
         android:text="历史记录"
         android:textColor="@android:color/white"
-        android:textSize="20sp"
+        android:textSize="17sp"
         android:textStyle="bold" />
+
+    <!-- *** 新增的列表标题行 *** -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="4dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:text="日期"
+            android:textColor="#CCAAAAAA"
+            android:textSize="11sp" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="类型"
+            android:textColor="#CCAAAAAA"
+            android:textSize="11sp" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:text="数量"
+            android:textColor="#CCAAAAAA"
+            android:textSize="11sp" />
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:gravity="end"
+            android:text="价格/金额"
+            android:textColor="#CCAAAAAA"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:layout_marginHorizontal="16dp"
+        android:background="#22FFFFFF" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_view_transactions"

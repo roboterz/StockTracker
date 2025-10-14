@@ -6,9 +6,16 @@
         <item name="android:textStyle">normal</item>
     </style>
 
+    <!-- *** 新增的Toolbar副标题文本样式 *** -->
+    <style name="Widget.App.Toolbar.SubtitleText" parent="TextAppearance.Widget.AppCompat.Toolbar.Subtitle">
+        <item name="android:textSize">11sp</item>
+    </style>
+
     <!-- 2. 定义一个使用上述文本样式的Toolbar样式 -->
     <style name="Widget.App.Toolbar" parent="Widget.MaterialComponents.Toolbar.Primary">
         <item name="titleTextAppearance">@style/Widget.App.Toolbar.TitleText</item>
+        <!-- 应用副标题样式 -->
+        <item name="subtitleTextAppearance">@style/Widget.App.Toolbar.SubtitleText</item>
     </style>
 
     <!-- 3. 在应用的基础主题中，全局应用这个Toolbar样式 -->
@@ -16,8 +23,6 @@
         <!-- Customize your theme here. -->
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="materialButtonOutlinedStyle">@style/Widget.App.Button.OutlinedButton</item>
-
-        <!-- *** 关键修复：在这里全局应用Toolbar样式 *** -->
         <item name="toolbarStyle">@style/Widget.App.Toolbar</item>
     </style>
 

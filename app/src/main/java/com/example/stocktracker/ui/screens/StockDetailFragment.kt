@@ -50,8 +50,7 @@ class StockDetailFragment : Fragment() {
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 
-            binding.detailLayout.updatePadding(top = systemBars.top)
-            binding.detailLayout.updatePadding(bottom = systemBars.bottom)
+            binding.detailLayout.updatePadding(top = systemBars.top, bottom = systemBars.bottom)
 
             insets
         }
@@ -93,6 +92,8 @@ class StockDetailFragment : Fragment() {
 
     private fun updateUi(stock: StockHolding) {
         binding.toolbar.title = stock.name
+        // *** 关键修复：设置工具栏的副标题为股票代码 ***
+        binding.toolbar.subtitle = stock.ticker
         binding.header.textViewMarketValue.text = formatCurrency(stock.marketValue, false)
 
         binding.header.metricDailyPl.metricLabel.text = "当日盈亏"
