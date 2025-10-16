@@ -46,7 +46,7 @@ class StockViewModel(application: Application) : ViewModel() {
             dao.getAllStocksWithTransactions()
                 .map { list -> list.map { it.toUIModel() } }
                 .catch { throwable ->
-                    // Handle error
+                    // 处理错误
                 }
                 .collect { holdings ->
                     _uiState.update { it.copy(holdings = holdings) }
@@ -125,4 +125,3 @@ class StockViewModelFactory(private val application: Application) : ViewModelPro
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
-
