@@ -22,7 +22,7 @@
         tools:subtitle="MARA NASDAQ"
         tools:title="MARA Holdings Inc" />
 
-    <!-- Include header layout -->
+    <!-- 包括标题布局 -->
     <include
         android:id="@+id/header"
         layout="@layout/layout_detail_header" />
@@ -92,4 +92,3 @@
         tools:listitem="@layout/list_item_transaction" />
 
 </LinearLayout>
-
