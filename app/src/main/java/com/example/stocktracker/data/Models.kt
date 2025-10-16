@@ -56,4 +56,3 @@ data class StockHolding(
         val empty = StockHolding("", "", "", 0.0, emptyList(), 0.0, 0.0, 0.0, 0.0, 0.0)
     }
 }
-
