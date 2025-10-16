@@ -117,7 +117,7 @@ abstract class StockDatabase : RoomDatabase() {
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                             super.onCreate(db)
-                            // Pre-populate database
+                            // 预填充数据库
                             Executors.newSingleThreadExecutor().execute {
                                 INSTANCE?.let { database ->
                                     runBlocking {
@@ -139,4 +139,3 @@ abstract class StockDatabase : RoomDatabase() {
         }
     }
 }
-
