@@ -12,23 +12,18 @@ fun StockWithTransactions.toUIModel(): StockHolding {
         .filter { it.type == TransactionType.DIVIDEND }
         .sumOf { it.quantity * it.price }
 
-    // 注意: 当日盈亏和持仓盈亏需要实时API数据，这里使用占位数据以匹配UI
-    val dailyPL = 6.45
-    val dailyPLPercent = 0.18
-    val holdingPL = 56.94
-    val holdingPLPercent = 1.63
-
-
+    // 注意：当日盈亏、持仓盈亏等将在ViewModel中获取网络数据后计算。
+    // 数据库中的currentPrice用作初始值。
     return StockHolding(
         id = stock.id,
         name = stock.name,
         ticker = stock.ticker,
         currentPrice = stock.currentPrice,
         transactions = uiTransactions,
-        dailyPL = dailyPL,
-        dailyPLPercent = dailyPLPercent,
-        holdingPL = holdingPL,
-        holdingPLPercent = holdingPLPercent,
+        dailyPL = 0.0, // 占位符
+        dailyPLPercent = 0.0, // 占位符
+        holdingPL = 0.0, // 占位符
+        holdingPLPercent = 0.0, // 占位符
         cumulativeDividend = cumulativeDividend
     )
 }
