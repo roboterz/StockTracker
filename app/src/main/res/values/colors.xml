@@ -3,6 +3,9 @@
     <color name="colorPrimary">#FF2689FE</color>
     <color name="positive_green">#0CCEA5</color>
     <color name="negative_red">#E52860</color>
+    <color name="dividend_gray">#BBBBBB</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#BBBBBB</color>
 
     <!-- Chart Colors -->
     <color name="chartColor1">#FFCE5C64</color>

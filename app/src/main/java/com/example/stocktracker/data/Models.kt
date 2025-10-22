@@ -71,6 +71,14 @@ data class StockHolding(
             return totalCost - costOfSoldShares
         }
 
+    // 新增：计算在特定日期的持股数量
+    fun getQuantityOnDate(date: LocalDate): Int {
+        return transactions
+            .filter { !it.date.isAfter(date) && it.type != TransactionType.DIVIDEND }
+            .sumOf { if (it.type == TransactionType.BUY) it.quantity else -it.quantity }
+    }
+
+
     val totalQuantity: Int
         get() = transactions.sumOf { if (it.type == TransactionType.BUY) it.quantity else if (it.type == TransactionType.SELL) -it.quantity else 0 }
 

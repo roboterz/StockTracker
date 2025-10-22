@@ -15,10 +15,12 @@ import com.example.stocktracker.data.toEntity
 import com.example.stocktracker.data.toUIModel
 import com.example.stocktracker.scraper.YahooFinanceScraper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.joinAll
 import java.time.LocalDate
 
 // --- 用于从ViewModel发送到UI的单次导航事件 ---
@@ -30,7 +32,7 @@ data class StockUiState(
     val holdings: List<StockHolding> = emptyList(),
     val selectedStockId: String? = null,
     val transactionToEditId: String? = null,
-    val cashBalance: Double = 0.0, // 初始值设为0
+    val cashBalance: Double = 0.0,
     val isRefreshing: Boolean = false
 ) {
     val selectedStock: StockHolding
@@ -42,7 +44,7 @@ data class StockUiState(
 
 class StockViewModel(application: Application) : ViewModel() {
     private val stockDao = StockDatabase.getDatabase(application).stockDao()
-    private val cashDao = StockDatabase.getDatabase(application).cashDao() // 新增
+    private val cashDao = StockDatabase.getDatabase(application).cashDao()
 
     private val _uiState = MutableStateFlow(StockUiState())
     val uiState: StateFlow<StockUiState> = _uiState.asStateFlow()
@@ -53,43 +55,43 @@ class StockViewModel(application: Application) : ViewModel() {
     private val _toastEvents = MutableSharedFlow<String>()
     val toastEvents = _toastEvents.asSharedFlow()
 
+    private val _priceDataFlow = MutableStateFlow<Map<String, YahooFinanceScraper.ScrapedData>>(emptyMap())
     private var isInitialLoad = true
 
     init {
-        // 合并持仓和现金流
         val holdingsFlow = stockDao.getAllStocksWithTransactions().map { list -> list.map { it.toUIModel() } }
         val cashFlow = cashDao.getAllCashTransactions().map { list -> list.map { it.toUIModel() } }
 
         viewModelScope.launch(Dispatchers.IO) {
-            combine(holdingsFlow, cashFlow) { holdings, cashTransactions ->
-                // 计算现金余额
+            combine(holdingsFlow, cashFlow, _priceDataFlow) { holdingsFromDb, cashTransactions, priceDataMap ->
                 val cashBalance = cashTransactions.sumOf {
                     if (it.type == CashTransactionType.DEPOSIT) it.amount else -it.amount
                 }
-                Pair(holdings, cashBalance)
+
+                val finalHoldings = holdingsFromDb.map { dbHolding ->
+                    priceDataMap[dbHolding.id]?.let { prices ->
+                        val dailyPL = (prices.currentPrice - prices.previousClose) * dbHolding.totalQuantity
+                        val dailyPLPercent = if (prices.previousClose != 0.0) (prices.currentPrice - prices.previousClose) / prices.previousClose * 100 else 0.0
+                        dbHolding.copy(
+                            currentPrice = prices.currentPrice,
+                            dailyPL = dailyPL,
+                            dailyPLPercent = dailyPLPercent
+                        )
+                    } ?: dbHolding
+                }
+
+                _uiState.update { it.copy(holdings = finalHoldings, cashBalance = cashBalance) }
+
+                if (isInitialLoad && finalHoldings.isNotEmpty()) {
+                    isInitialLoad = false
+                    refreshData()
+                }
             }
                 .catch { throwable ->
-                    Log.e("StockViewModel", "Error collecting from DB", throwable)
-                    _toastEvents.emit("无法从数据库加载数据")
+                    Log.e("StockViewModel", "Error in combine flow", throwable)
+                    _toastEvents.emit("数据加载时发生错误")
                 }
-                .collect { (holdingsFromDb, cashBalance) ->
-                    val currentHoldingsMap = _uiState.value.holdings.associateBy { it.id }
-                    val mergedHoldings = holdingsFromDb.map { dbHolding ->
-                        currentHoldingsMap[dbHolding.id]?.let { existingUiHolding ->
-                            dbHolding.copy(
-                                dailyPL = existingUiHolding.dailyPL,
-                                dailyPLPercent = existingUiHolding.dailyPLPercent
-                            )
-                        } ?: dbHolding
-                    }
-
-                    _uiState.update { it.copy(holdings = mergedHoldings, cashBalance = cashBalance) }
-
-                    if (isInitialLoad && mergedHoldings.isNotEmpty()) {
-                        isInitialLoad = false
-                        refreshData()
-                    }
-                }
+                .collect()
         }
     }
 
@@ -99,53 +101,69 @@ class StockViewModel(application: Application) : ViewModel() {
 
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
-            var successfulFetches = 0
-            val activeHoldings = _uiState.value.holdings.filter { it.totalQuantity > 0 }
+            val holdingsToRefresh = _uiState.value.holdings.filter { it.totalQuantity > 0 }
 
             try {
-                if (activeHoldings.isEmpty()) {
+                if (holdingsToRefresh.isEmpty()) {
                     _uiState.update { it.copy(isRefreshing = false) }
                     return@launch
                 }
 
-                val deferredData = activeHoldings.map { holding ->
+                val deferredJobs = holdingsToRefresh.map { holding ->
                     async(Dispatchers.IO) {
-                        Log.d("StockViewModel", "Fetching data for ${holding.id}")
-                        val data = YahooFinanceScraper.fetchStockData(holding.id)
-                        Log.d("StockViewModel", "Data for ${holding.id}: $data")
-                        holding.id to data
+                        val priceData = YahooFinanceScraper.fetchStockData(holding.id)
+                        val firstTransactionDate = holding.transactions.minOfOrNull { it.date }
+                        val dividendHistory = if (firstTransactionDate != null) {
+                            YahooFinanceScraper.fetchDividendHistory(holding.id, firstTransactionDate)
+                        } else null
+                        Triple(holding, priceData, dividendHistory)
                     }
                 }
 
-                val scrapedDataMap = deferredData.awaitAll().toMap()
+                val results = deferredJobs.awaitAll()
+                var successfulFetches = 0
+                val newPriceData = mutableMapOf<String, YahooFinanceScraper.ScrapedData>()
 
-                val updatedHoldingsList = _uiState.value.holdings.map { holding ->
-                    scrapedDataMap[holding.id]?.let { scrapedData ->
+                // *** 关键修复：将所有分红写入操作收集起来并等待它们全部完成 ***
+                val dividendWriteJobs = mutableListOf<Job>()
+                results.forEach { (holding, _, dividendHistory) ->
+                    dividendHistory?.forEach { dividendInfo ->
+                        val alreadyExists = holding.transactions.any { it.type == TransactionType.DIVIDEND && it.date == dividendInfo.date }
+                        if (!alreadyExists) {
+                            val sharesOnDate = holding.getQuantityOnDate(dividendInfo.date)
+                            if (sharesOnDate > 0) {
+                                val dividendTransaction = Transaction(
+                                    date = dividendInfo.date,
+                                    type = TransactionType.DIVIDEND,
+                                    quantity = sharesOnDate,
+                                    price = dividendInfo.dividend
+                                )
+                                // 启动一个新协程来保存分红，并将其添加到任务列表
+                                val job = launch(Dispatchers.IO) {
+                                    saveOrUpdateTransactionInternal(dividendTransaction, holding.id, "", holding.name)
+                                }
+                                dividendWriteJobs.add(job)
+                            }
+                        }
+                    }
+                }
+                // 等待所有分红保存任务完成
+                dividendWriteJobs.joinAll()
+
+                // 在所有分红都写入数据库后，再处理价格更新
+                results.forEach { (holding, priceData, _) ->
+                    priceData?.let {
                         successfulFetches++
-                        val dailyPL = (scrapedData.currentPrice - scrapedData.previousClose) * holding.totalQuantity
-                        val dailyPLPercent = if (scrapedData.previousClose != 0.0) (scrapedData.currentPrice - scrapedData.previousClose) / scrapedData.previousClose * 100 else 0.0
-
-                        holding.copy(
-                            currentPrice = scrapedData.currentPrice,
-                            dailyPL = dailyPL,
-                            dailyPLPercent = dailyPLPercent
-                        )
-                    } ?: holding
+                        stockDao.updateStock(holding.toEntity().copy(currentPrice = it.currentPrice))
+                        newPriceData[holding.id] = it
+                    }
                 }
 
-                _uiState.update { it.copy(holdings = updatedHoldingsList) }
+                _priceDataFlow.update { it + newPriceData }
 
-                val entitiesToUpdate = updatedHoldingsList
-                    .filter { scrapedDataMap.containsKey(it.id) }
-                    .map { it.toEntity() }
-
-                if (entitiesToUpdate.isNotEmpty()) {
-                    entitiesToUpdate.forEach { stockDao.updateStock(it) }
-                }
-
-                if (successfulFetches == 0 && activeHoldings.isNotEmpty()) {
+                if (successfulFetches == 0 && holdingsToRefresh.isNotEmpty()) {
                     _toastEvents.emit("未能获取任何股票的最新价格")
-                } else if (successfulFetches < activeHoldings.size) {
+                } else if (successfulFetches < holdingsToRefresh.size) {
                     _toastEvents.emit("未能获取部分股票的最新价格")
                 }
 
@@ -158,99 +176,74 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
-
     fun selectStock(stockId: String) {
         _uiState.update { it.copy(selectedStockId = stockId) }
     }
 
     fun prepareNewTransaction(stockId: String? = null) {
-        _uiState.update {
-            it.copy(
-                selectedStockId = stockId,
-                transactionToEditId = null
-            )
-        }
+        _uiState.update { it.copy(selectedStockId = stockId, transactionToEditId = null) }
     }
 
     fun prepareEditTransaction(transactionId: String) {
         _uiState.update { it.copy(transactionToEditId = transactionId) }
     }
 
+    // UI调用的公共函数
     fun saveOrUpdateTransaction(
         transaction: Transaction,
         stockId: String?,
         newStockIdentifier: String,
         stockName: String
     ) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val idToProcess = (stockId ?: newStockIdentifier).uppercase()
-            if (idToProcess.isBlank()) return@launch
-
-            // 如果是编辑操作，先删除旧的关联现金交易
-            val originalTransaction = _uiState.value.transactionToEdit
-            if (originalTransaction != null) {
-                cashDao.deleteByStockTransactionId(originalTransaction.id)
-            }
-
-            // 保存股票和交易记录
-            val existingStock = _uiState.value.holdings.find { it.id.equals(idToProcess, ignoreCase = true) }
-
-            if (existingStock != null) {
-                val updatedStockEntity = existingStock.toEntity().copy(name = stockName)
-                stockDao.updateStock(updatedStockEntity)
-                stockDao.insertTransaction(transaction.toEntity(existingStock.id))
-            } else {
-                val newStock = StockHolding(
-                    id = idToProcess,
-                    name = stockName,
-                    ticker = "NASDAQ:$idToProcess",
-                    currentPrice = transaction.price,
-                    transactions = emptyList()
-                )
-                stockDao.insertStock(newStock.toEntity())
-                stockDao.insertTransaction(transaction.toEntity(newStock.id))
-            }
-
-            // 根据新的股票交易创建新的现金交易
-            val cashTransaction = when (transaction.type) {
-                TransactionType.BUY -> CashTransaction(
-                    date = transaction.date,
-                    type = CashTransactionType.WITHDRAWAL,
-                    amount = (transaction.quantity * transaction.price) + transaction.fee,
-                    stockTransactionId = transaction.id
-                )
-                TransactionType.SELL -> CashTransaction(
-                    date = transaction.date,
-                    type = CashTransactionType.DEPOSIT,
-                    amount = (transaction.quantity * transaction.price) - transaction.fee,
-                    stockTransactionId = transaction.id
-                )
-                TransactionType.DIVIDEND -> CashTransaction(
-                    date = transaction.date,
-                    type = CashTransactionType.DEPOSIT,
-                    amount = transaction.quantity * transaction.price, // 对于分红，price 代表每股股息
-                    stockTransactionId = transaction.id
-                )
-            }
-            cashDao.insertCashTransaction(cashTransaction.toEntity())
-
-
+        viewModelScope.launch {
+            saveOrUpdateTransactionInternal(transaction, stockId, newStockIdentifier, stockName)
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }
 
-    // 新增：保存现金交易
+    // 内部使用的 suspend 函数
+    private suspend fun saveOrUpdateTransactionInternal(
+        transaction: Transaction,
+        stockId: String?,
+        newStockIdentifier: String,
+        stockName: String
+    ) {
+        val idToProcess = (stockId ?: newStockIdentifier).uppercase()
+        if (idToProcess.isBlank()) return
+
+        val originalTransaction = _uiState.value.transactionToEdit
+        if (originalTransaction != null) {
+            cashDao.deleteByStockTransactionId(originalTransaction.id)
+        }
+
+        val existingStock = stockDao.getStockById(idToProcess)
+        if (existingStock != null) {
+            stockDao.updateStock(existingStock.copy(name = stockName))
+            stockDao.insertTransaction(transaction.toEntity(idToProcess))
+        } else {
+            val newStock = StockHolding(
+                id = idToProcess, name = stockName, ticker = idToProcess,
+                currentPrice = transaction.price, transactions = emptyList()
+            )
+            stockDao.insertStock(newStock.toEntity())
+            stockDao.insertTransaction(transaction.toEntity(newStock.id))
+        }
+
+        val cashTransaction = when (transaction.type) {
+            TransactionType.BUY -> CashTransaction(date = transaction.date, type = CashTransactionType.WITHDRAWAL, amount = (transaction.quantity * transaction.price) + transaction.fee, stockTransactionId = transaction.id)
+            TransactionType.SELL -> CashTransaction(date = transaction.date, type = CashTransactionType.DEPOSIT, amount = (transaction.quantity * transaction.price) - transaction.fee, stockTransactionId = transaction.id)
+            TransactionType.DIVIDEND -> CashTransaction(date = transaction.date, type = CashTransactionType.DEPOSIT, amount = transaction.quantity * transaction.price, stockTransactionId = transaction.id)
+        }
+        cashDao.insertCashTransaction(cashTransaction.toEntity())
+    }
+
     fun addCashTransaction(amount: Double, type: CashTransactionType) {
         viewModelScope.launch(Dispatchers.IO) {
             if (amount <= 0) {
                 _toastEvents.emit("金额必须大于0")
                 return@launch
             }
-            val cashTransaction = CashTransaction(
-                date = LocalDate.now(),
-                type = type,
-                amount = amount
-            )
+            val cashTransaction = CashTransaction(date = LocalDate.now(), type = type, amount = amount)
             cashDao.insertCashTransaction(cashTransaction.toEntity())
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
@@ -258,9 +251,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     fun deleteTransaction(transactionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            // 先删除股票交易
             stockDao.deleteTransactionById(transactionId)
-            // 再删除关联的现金交易
             cashDao.deleteByStockTransactionId(transactionId)
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
