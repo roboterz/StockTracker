@@ -71,4 +71,14 @@ dependencies {
 
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.constraintlayout)
+
+    // 新增依赖：Retrofit, Gson, SwipeRefreshLayout
+    implementation(libs.retrofit)
+    implementation(libs.converter.gson)
+
+    implementation(libs.androidx.swiperefreshlayout)
+
+    // Jsoup for web scraping
+    implementation(libs.jsoup)
+
 }

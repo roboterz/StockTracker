@@ -1,6 +1,8 @@
 package com.example.stocktracker.data.database
 
+import android.content.Context
 import androidx.room.*
+import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.SampleData
 import com.example.stocktracker.data.TransactionType
 import com.example.stocktracker.data.toEntity
@@ -40,6 +42,17 @@ data class TransactionEntity(
     val fee: Double
 )
 
+// 新增：现金交易实体
+@Entity(tableName = "cash_transactions")
+data class CashTransactionEntity(
+    @PrimaryKey val id: String,
+    val date: LocalDate,
+    val type: CashTransactionType,
+    val amount: Double,
+    val stockTransactionId: String? // 可为空，用于关联股票交易
+)
+
+
 // 用于查询的组合数据类 (POJO for Queries)
 data class StockWithTransactions(
     @Embedded val stock: StockHoldingEntity,
@@ -71,6 +84,17 @@ class Converters {
     fun transactionTypeToString(type: TransactionType?): String? {
         return type?.name
     }
+
+    // 新增：现金交易类型的转换器
+    @TypeConverter
+    fun fromCashTransactionType(value: String?): CashTransactionType? {
+        return value?.let { CashTransactionType.valueOf(it) }
+    }
+
+    @TypeConverter
+    fun cashTransactionTypeToString(type: CashTransactionType?): String? {
+        return type?.name
+    }
 }
 
 
@@ -81,11 +105,14 @@ interface StockDao {
     @Query("SELECT * FROM stocks")
     fun getAllStocksWithTransactions(): Flow<List<StockWithTransactions>>
 
+    @Query("SELECT * FROM stocks WHERE id = :stockId")
+    suspend fun getStockById(stockId: String): StockHoldingEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStock(stock: StockHoldingEntity)
 
     @Update
-    suspend fun updateStock(stock: StockHoldingEntity) // 确认此方法存在
+    suspend fun updateStock(stock: StockHoldingEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: TransactionEntity)
@@ -97,17 +124,32 @@ interface StockDao {
     suspend fun deleteTransactionById(transactionId: String)
 }
 
+// 新增：现金交易的 DAO
+@Dao
+interface CashDao {
+    @Query("SELECT * FROM cash_transactions ORDER BY date DESC")
+    fun getAllCashTransactions(): Flow<List<CashTransactionEntity>>
+
+    @Insert
+    suspend fun insertCashTransaction(transaction: CashTransactionEntity)
+
+    @Query("DELETE FROM cash_transactions WHERE stockTransactionId = :stockTransactionId")
+    suspend fun deleteByStockTransactionId(stockTransactionId: String)
+}
+
+
 // 数据库
-@Database(entities = [StockHoldingEntity::class, TransactionEntity::class], version = 1)
+@Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class], version = 2) // 版本升至2
 @TypeConverters(Converters::class)
 abstract class StockDatabase : RoomDatabase() {
     abstract fun stockDao(): StockDao
+    abstract fun cashDao(): CashDao // 新增
 
     companion object {
         @Volatile
         private var INSTANCE: StockDatabase? = null
 
-        fun getDatabase(context: android.content.Context): StockDatabase {
+        fun getDatabase(context: Context): StockDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
@@ -117,7 +159,6 @@ abstract class StockDatabase : RoomDatabase() {
                     .addCallback(object : Callback() {
                         override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                             super.onCreate(db)
-                            // 预填充数据库
                             Executors.newSingleThreadExecutor().execute {
                                 INSTANCE?.let { database ->
                                     runBlocking {
@@ -132,6 +173,7 @@ abstract class StockDatabase : RoomDatabase() {
                             }
                         }
                     })
+                    .fallbackToDestructiveMigration() // 添加迁移策略
                     .build()
                 INSTANCE = instance
                 instance
@@ -139,3 +181,4 @@ abstract class StockDatabase : RoomDatabase() {
         }
     }
 }
+

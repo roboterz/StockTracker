@@ -135,11 +135,8 @@ class AddOrEditTransactionFragment : Fragment() {
             }
         }
 
-        // *** 关键修复：防止按钮被取消选中 ***
         binding.buttonToggleGroup.addOnButtonCheckedListener { group, checkedId, isChecked ->
             if (!isChecked) {
-                // 如果用户试图取消选中一个按钮，而这将导致没有任何按钮被选中，
-                // 那么我们立即重新选中该按钮。
                 if (group.checkedButtonId == View.NO_ID) {
                     group.check(checkedId)
                 }

@@ -16,6 +16,9 @@
         <action
             android:id="@+id/action_portfolioFragment_to_addOrEditTransactionFragment"
             app:destination="@id/addOrEditTransactionFragment" />
+        <action
+            android:id="@+id/action_portfolioFragment_to_cashTransactionFragment"
+            app:destination="@id/cashTransactionFragment" />
     </fragment>
 
     <fragment
@@ -33,6 +36,13 @@
         android:name="com.example.stocktracker.ui.screens.AddOrEditTransactionFragment"
         android:label="Add/Edit Transaction"
         tools:layout="@layout/fragment_add_or_edit_transaction" />
+
+    <!-- 新增：现金交易页面的 Fragment 节点 -->
+    <fragment
+        android:id="@+id/cashTransactionFragment"
+        android:name="com.example.stocktracker.ui.screens.CashTransactionFragment"
+        android:label="fragment_cash_transaction"
+        tools:layout="@layout/fragment_cash_transaction" />
 
 </navigation>
 

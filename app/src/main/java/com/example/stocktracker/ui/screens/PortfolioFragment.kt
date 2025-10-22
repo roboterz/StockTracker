@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -18,6 +19,7 @@ import com.example.stocktracker.databinding.FragmentPortfolioBinding
 import com.example.stocktracker.ui.PortfolioAdapter
 import com.example.stocktracker.ui.viewmodel.StockViewModel
 import com.example.stocktracker.ui.viewmodel.StockViewModelFactory
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class PortfolioFragment : Fragment() {
@@ -42,14 +44,14 @@ class PortfolioFragment : Fragment() {
 
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-
             binding.appBarLayout.updatePadding(top = systemBars.top)
-
             binding.recyclerViewStocks.updatePadding(bottom = systemBars.bottom)
-
             insets
         }
 
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            viewModel.refreshData()
+        }
 
         val portfolioAdapter = PortfolioAdapter { stock ->
             viewModel.selectStock(stock.id)
@@ -60,21 +62,17 @@ class PortfolioFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { uiState ->
-                    // 过滤掉股数为0的持仓
+                    binding.swipeRefreshLayout.isRefreshing = uiState.isRefreshing
+
                     val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
                     val filteredUiState = uiState.copy(holdings = activeHoldings)
 
-
                     val portfolioItems = mutableListOf<PortfolioListItem>()
-                    // 1. Add Header
                     portfolioItems.add(PortfolioListItem.Header(filteredUiState))
-                    // 2. Add Profit/Loss Chart
                     portfolioItems.add(PortfolioListItem.ProfitLossChart())
-                    // 3. Add Donut Chart if there are holdings
                     if (filteredUiState.holdings.isNotEmpty()) {
                         portfolioItems.add(PortfolioListItem.Chart(filteredUiState.holdings))
                     }
-                    // 4. Add Stock items
                     filteredUiState.holdings.forEach { stock ->
                         portfolioItems.add(PortfolioListItem.Stock(stock))
                     }
@@ -83,11 +81,21 @@ class PortfolioFragment : Fragment() {
             }
         }
 
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.toastEvents.collectLatest { message ->
+                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+            }
+        }
+
         binding.toolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.action_add -> {
                     viewModel.prepareNewTransaction(null)
                     findNavController().navigate(R.id.action_portfolioFragment_to_addOrEditTransactionFragment)
+                    true
+                }
+                R.id.action_add_cash -> {
+                    findNavController().navigate(R.id.action_portfolioFragment_to_cashTransactionFragment)
                     true
                 }
                 else -> false

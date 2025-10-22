@@ -14,7 +14,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1.5"
-        android:textColor="@android:color/darker_gray"
+        android:textColor="@android:color/white"
         android:textSize="14sp"
         tools:text="2025-09-11" />
 
@@ -23,7 +23,6 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:textStyle="bold"
         tools:text="卖出"
         tools:textColor="@color/negative_red" />
 
@@ -44,15 +43,15 @@
         android:orientation="vertical">
 
         <TextView
-            android:id="@+id/text_view_amount"
+            android:id="@+id/text_view_price"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@android:color/white"
-            android:textSize="16sp"
+            android:textSize="14sp"
             tools:text="888.25" />
 
         <TextView
-            android:id="@+id/text_view_price"
+            android:id="@+id/text_view_amount"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textColor="@android:color/darker_gray"

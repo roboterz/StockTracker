@@ -103,7 +103,7 @@ class PortfolioAdapter(
 
             binding.header.metricTotalPl.metricLabel.text = "总盈亏"
             binding.header.metricTotalPl.metricValue.text = formatCurrency(totalPL, true)
-            binding.header.metricTotalPl.metricPercent.text = String.format("%s%.2f%%", if(totalPL >= 0) "+" else "", totalPLPercent.absoluteValue)
+            binding.header.metricTotalPl.metricPercent.text = String.format("%s%.2f%%", if(totalPL >= 0) "+" else "-", totalPLPercent.absoluteValue)
             updateMetricColor(binding.header.metricTotalPl.metricValue, binding.header.metricTotalPl.metricPercent, totalPL)
 
             binding.header.metricCash.metricLabel.text = "现金"

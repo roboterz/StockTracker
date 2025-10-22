@@ -43,14 +43,17 @@ class TransactionAdapter(private val onItemClicked: (Transaction) -> Unit) :
                 TransactionType.BUY -> {
                     binding.textViewType.text = "买入"
                     binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+                    binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
                 }
                 TransactionType.SELL -> {
                     binding.textViewType.text = "卖出"
                     binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+                    binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
                 }
                 TransactionType.DIVIDEND -> {
                     binding.textViewType.text = "分红"
-                    binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.colorPrimary))
+                    binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.dividend_gray))
+                    binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.dividend_gray))
                 }
             }
         }
