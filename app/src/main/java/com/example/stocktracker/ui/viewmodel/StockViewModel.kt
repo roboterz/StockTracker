@@ -21,6 +21,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 // --- 用于从ViewModel发送到UI的单次导航事件 ---
@@ -114,10 +115,8 @@ class StockViewModel(application: Application) : ViewModel() {
                         val priceData = YahooFinanceScraper.fetchStockData(holding.id)
                         val firstTransactionDate = holding.transactions.minOfOrNull { it.date }
                         val dividendHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchDividendHistory(holding.id, firstTransactionDate) else null
-                        // 新增：获取拆股历史
                         val splitHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchSplitHistory(holding.id, firstTransactionDate) else null
 
-                        // 将所有数据打包
                         object {
                             val holding = holding
                             val priceData = priceData
@@ -133,7 +132,6 @@ class StockViewModel(application: Application) : ViewModel() {
 
                 val dbWriteJobs = mutableListOf<Job>()
                 results.forEach { data ->
-                    // 处理分红
                     data.dividendHistory?.forEach { dividendInfo ->
                         val alreadyExists = data.holding.transactions.any { it.type == TransactionType.DIVIDEND && it.date == dividendInfo.date }
                         if (!alreadyExists) {
@@ -145,15 +143,14 @@ class StockViewModel(application: Application) : ViewModel() {
                         }
                     }
 
-                    // 处理拆股/合股
                     data.splitHistory?.forEach { splitInfo ->
                         val alreadyExists = data.holding.transactions.any { it.type == TransactionType.SPLIT && it.date == splitInfo.date }
                         if (!alreadyExists) {
                             val splitTransaction = Transaction(
                                 date = splitInfo.date,
                                 type = TransactionType.SPLIT,
-                                quantity = splitInfo.numerator.toInt(), // 分子
-                                price = splitInfo.denominator          // 分母
+                                quantity = splitInfo.numerator,
+                                price = splitInfo.denominator
                             )
                             dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(splitTransaction, data.holding.id, "", data.holding.name) })
                         }
@@ -184,6 +181,13 @@ class StockViewModel(application: Application) : ViewModel() {
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }
             }
+        }
+    }
+
+    // *** 关键修复：创建一个新函数来获取名称和价格 ***
+    suspend fun fetchInitialStockData(ticker: String): YahooFinanceScraper.ScrapedData? {
+        return withContext(Dispatchers.IO) {
+            YahooFinanceScraper.fetchStockData(ticker)
         }
     }
 
@@ -238,7 +242,6 @@ class StockViewModel(application: Application) : ViewModel() {
             stockDao.insertTransaction(transaction.toEntity(newStock.id))
         }
 
-        // 拆股/合股事件不影响现金
         if (transaction.type == TransactionType.SPLIT) {
             return
         }

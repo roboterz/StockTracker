@@ -123,7 +123,7 @@ class StockDetailFragment : Fragment() {
         binding.header.layoutInfoCostBasis.infoValue.text = formatCurrency(stock.costBasis, false)
 
         binding.header.layoutInfoQuantity.infoLabel.text = "数量"
-        binding.header.layoutInfoQuantity.infoValue.text = stock.totalQuantity.toString()
+        binding.header.layoutInfoQuantity.infoValue.text = DecimalFormat("#.##").format(stock.totalQuantity).toString()
 
         binding.header.layoutInfoTotalCost.infoLabel.text = "成本"
         binding.header.layoutInfoTotalCost.infoValue.text = formatCurrency(stock.totalCost - stock.totalSoldValue, false)

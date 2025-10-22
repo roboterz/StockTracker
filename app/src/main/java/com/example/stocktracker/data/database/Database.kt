@@ -37,7 +37,8 @@ data class TransactionEntity(
     val stockId: String,
     val date: LocalDate,
     val type: TransactionType,
-    val quantity: Int,
+    // *** 关键修复：将 quantity 类型改为 Double ***
+    val quantity: Double,
     val price: Double,
     val fee: Double
 )
@@ -139,7 +140,7 @@ interface CashDao {
 
 
 // 数据库
-@Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class], version = 2) // 版本升至2
+@Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class], version = 3) // 版本升至3
 @TypeConverters(Converters::class)
 abstract class StockDatabase : RoomDatabase() {
     abstract fun stockDao(): StockDao

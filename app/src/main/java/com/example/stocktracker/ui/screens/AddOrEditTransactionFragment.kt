@@ -1,6 +1,7 @@
 package com.example.stocktracker.ui.screens
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -98,13 +99,42 @@ class AddOrEditTransactionFragment : Fragment() {
     }
 
     private fun setupListeners(transactionToEdit: Transaction?) {
+        // 自动获取股票名称和价格的逻辑
+        binding.editTextStockId.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                val ticker = binding.editTextStockId.text.toString().trim()
+                if (ticker.isNotBlank()) {
+                    lifecycleScope.launch {
+                        binding.progressBarName.isVisible = true
+                        binding.editTextStockName.isEnabled = false
+                        try {
+                            // *** 关键修复：调用新函数以同时获取名称和价格 ***
+                            val data = viewModel.fetchInitialStockData(ticker)
+                            if (data != null) {
+                                binding.editTextStockName.setText(data.name)
+                                binding.editTextPrice.setText(data.currentPrice.toString())
+                            } else {
+                                Toast.makeText(requireContext(), "无法找到股票数据", Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("AddOrEditTransaction", "Failed to fetch initial stock data for $ticker", e)
+                            Toast.makeText(requireContext(), "获取股票数据失败", Toast.LENGTH_SHORT).show()
+                        } finally {
+                            binding.progressBarName.isVisible = false
+                            binding.editTextStockName.isEnabled = true
+                        }
+                    }
+                }
+            }
+        }
+
         binding.buttonSave.setOnClickListener {
             val stock = viewModel.uiState.value.selectedStock
             val isNewStockMode = stock.id.isEmpty() && transactionToEdit == null
             val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
 
             val price = binding.editTextPrice.text.toString().toDoubleOrNull()
-            val quantity = binding.editTextQuantity.text.toString().toIntOrNull()
+            val quantity = binding.editTextQuantity.text.toString().toDoubleOrNull()
             val fee = binding.editTextFee.text.toString().toDoubleOrNull() ?: 0.0
             val dateStr = binding.editTextDate.text.toString()
 
@@ -113,7 +143,7 @@ class AddOrEditTransactionFragment : Fragment() {
 
 
             if (price == null || quantity == null || dateStr.isBlank() || (isNewStockMode && (newStockId.isBlank() || stockName.isBlank()))) {
-                Toast.makeText(context, "请填写所有必填字段", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "请填写所有必填字段", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 

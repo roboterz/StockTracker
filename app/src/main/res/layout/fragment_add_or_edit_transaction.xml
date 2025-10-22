@@ -16,7 +16,7 @@
         app:navigationIcon="@drawable/ic_arrow_back"
         app:navigationIconTint="@android:color/white"
         app:titleTextColor="@android:color/white"
-        tools:title="模拟持仓" />
+        tools:title="持仓" />
 
     <ScrollView
         android:layout_width="match_parent"
@@ -76,23 +76,45 @@
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- 仅在添加全新股票时显示 -->
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/text_input_layout_stock_name"
-                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="股票名称"
-                android:textColorHint="@android:color/darker_gray"
-                app:boxStrokeColor="@android:color/white"
-                app:hintTextColor="@android:color/white">
+                android:layout_marginTop="8dp">
 
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/edit_text_stock_name"
-                    android:layout_width="match_parent"
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/text_input_layout_stock_name"
+                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:textColor="@android:color/white" />
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:hint="股票名称"
+                    android:textColorHint="@android:color/darker_gray"
+                    app:boxStrokeColor="@android:color/white"
+                    app:hintTextColor="@android:color/white"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintTop_toTopOf="parent">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/edit_text_stock_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:textColor="@android:color/white" />
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <ProgressBar
+                    android:id="@+id/progress_bar_name"
+                    style="?android:attr/progressBarStyleSmall"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="16dp"
+                    android:visibility="gone"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="parent"
+                    tools:visibility="visible" />
+
+            </androidx.constraintlayout.widget.ConstraintLayout>
 
 
             <com.google.android.material.button.MaterialButtonToggleGroup
@@ -170,7 +192,7 @@
                     android:id="@+id/edit_text_quantity"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:inputType="number"
+                    android:inputType="numberDecimal"
                     android:textColor="@android:color/white" />
             </com.google.android.material.textfield.TextInputLayout>
 

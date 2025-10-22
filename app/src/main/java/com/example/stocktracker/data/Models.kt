@@ -6,14 +6,15 @@ import java.util.*
 // --- UI 数据模型 (UI Data Models) ---
 
 enum class TransactionType {
-    BUY, SELL, DIVIDEND, SPLIT // 新增 SPLIT 类型
+    BUY, SELL, DIVIDEND, SPLIT
 }
 
 data class Transaction(
     val id: String = UUID.randomUUID().toString(),
     val date: LocalDate,
     val type: TransactionType,
-    val quantity: Int, // 对于 SPLIT，这里将存储 Numerator (分子)
+    // *** 关键修复：将 quantity 类型改为 Double 以支持零星股 ***
+    val quantity: Double,
     val price: Double, // 对于 SPLIT，这里将存储 Denominator (分母)
     val fee: Double = 0.0
 )
@@ -28,18 +29,16 @@ data class StockHolding(
     var dailyPLPercent: Double = 0.0,
     val cumulativeDividend: Double = 0.0
 ) {
-    // 这是一个用于缓存FIFO计算结果的属性
     private val fifoCalculations by lazy {
         performFifoCalculations()
     }
 
-    val totalQuantity: Int get() = fifoCalculations.finalQuantity
+    val totalQuantity: Double get() = fifoCalculations.finalQuantity
     val totalCost: Double get() = fifoCalculations.totalCost
     val totalSoldValue: Double get() = fifoCalculations.totalSoldValue
     val holdingPL: Double get() = if (totalQuantity > 0) marketValue - (totalCost - totalSoldValue) else 0.0
     val costBasis: Double get() = if (totalQuantity > 0) (totalCost - totalSoldValue) / totalQuantity else 0.0
 
-    // *** 关键修复：重新添加缺失的 holdingPLPercent 属性 ***
     val holdingPLPercent: Double
         get() {
             val cost = totalCost - totalSoldValue
@@ -55,9 +54,9 @@ data class StockHolding(
     val totalPLPercent: Double
         get() = if ((totalCost - totalSoldValue) > 0) totalPL / (totalCost - totalSoldValue) * 100 else 0.0
 
-    // 根据日期获取持股数量
-    fun getQuantityOnDate(date: LocalDate): Int {
-        var quantity = 0
+    // *** 关键修复：更新函数以返回 Double 并正确处理计算 ***
+    fun getQuantityOnDate(date: LocalDate): Double {
+        var quantity = 0.0
         transactions
             .filter { it.date.isBefore(date) || it.date.isEqual(date) }
             .sortedBy { it.date }
@@ -66,8 +65,8 @@ data class StockHolding(
                     TransactionType.BUY -> quantity += it.quantity
                     TransactionType.SELL -> quantity -= it.quantity
                     TransactionType.SPLIT -> {
-                        val ratio = it.quantity.toDouble() / it.price
-                        quantity = (quantity * ratio).toInt()
+                        val ratio = it.quantity / it.price
+                        quantity *= ratio
                     }
                     else -> { /* Do nothing */
                     }
@@ -77,14 +76,12 @@ data class StockHolding(
     }
 
 
-    // 内部数据类，用于封装FIFO计算的复杂结果
     private data class FifoResult(
-        val finalQuantity: Int,
+        val finalQuantity: Double, // *** 关键修复：改为 Double ***
         val totalCost: Double,
         val totalSoldValue: Double
     )
 
-    // 核心FIFO计算逻辑，现在支持拆股/合股
     private fun performFifoCalculations(): FifoResult {
         val sortedTransactions = transactions.sortedBy { it.date }
         val remainingBuys = mutableListOf<Transaction>()
@@ -95,7 +92,7 @@ data class StockHolding(
                 TransactionType.BUY -> remainingBuys.add(t)
                 TransactionType.SELL -> {
                     var sellQuantity = t.quantity
-                    var sellProceeds = t.quantity * t.price - t.fee
+                    val sellProceeds = t.quantity * t.price - t.fee
                     totalSoldValue += sellProceeds
 
                     val iterator = remainingBuys.iterator()
@@ -106,21 +103,19 @@ data class StockHolding(
                             iterator.remove()
                         } else {
                             val updatedBuy = buy.copy(quantity = buy.quantity - sellQuantity)
-                            // 用更新后的buy替换原来的buy
                             val index = remainingBuys.indexOf(buy)
                             if (index != -1) {
                                 remainingBuys[index] = updatedBuy
                             }
-                            sellQuantity = 0
+                            sellQuantity = 0.0
                         }
                     }
                 }
                 TransactionType.SPLIT -> {
-                    // 当遇到拆股事件时，调整所有现有持仓的数量和价格
-                    val ratio = t.quantity.toDouble() / t.price
+                    val ratio = t.quantity / t.price
                     val adjustedBuys = remainingBuys.map { buy ->
                         buy.copy(
-                            quantity = (buy.quantity * ratio).toInt(),
+                            quantity = buy.quantity * ratio,
                             price = buy.price / ratio
                         )
                     }

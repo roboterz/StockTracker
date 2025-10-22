@@ -10,11 +10,18 @@ object YahooFinanceScraper {
 
     private const val TAG = "YahooFinanceScraper"
 
-    data class ScrapedData(val currentPrice: Double, val previousClose: Double)
+    // *** 关键修复：合并数据类以包含股票名称 ***
+    data class ScrapedData(
+        val name: String,
+        val currentPrice: Double,
+        val previousClose: Double
+    )
     data class DividendInfo(val date: LocalDate, val dividend: Double)
-    // 新增：用于封装拆股信息的数据类
     data class SplitInfo(val date: LocalDate, val numerator: Double, val denominator: Double)
 
+    // *** 关键修复：移除不再有效且冗余的 fetchStockName 函数 ***
+
+    // *** 关键修复：更新 fetchStockData 以同时返回名称和价格 ***
     fun fetchStockData(ticker: String): ScrapedData? {
         val url = "https://query1.finance.yahoo.com/v8/finance/chart/$ticker"
         return try {
@@ -30,20 +37,22 @@ object YahooFinanceScraper {
             val result = chart.getJSONArray("result").getJSONObject(0)
             val meta = result.getJSONObject("meta")
 
+            // 从同一响应中解析名称和价格
+            val name = meta.optString("shortName", meta.optString("longName", ticker))
             val currentPrice = meta.getDouble("regularMarketPrice")
             val previousClose = meta.getDouble("previousClose")
 
-            Log.d(TAG, "Ticker: $ticker | Fetched Price: $currentPrice | Fetched Prev Close: $previousClose")
+            Log.d(TAG, "Ticker: $ticker | Fetched Name: $name | Price: $currentPrice | Prev Close: $previousClose")
 
-            if (currentPrice > 0 && previousClose > 0) {
-                ScrapedData(currentPrice, previousClose)
+            if (currentPrice > 0 && previousClose > 0 && name.isNotBlank()) {
+                ScrapedData(name, currentPrice, previousClose)
             } else {
-                Log.e(TAG, "Parsed zero values for $ticker. Current: $currentPrice, Previous: $previousClose")
+                Log.e(TAG, "Parsed invalid values for $ticker. Name: $name, Current: $currentPrice, Previous: $previousClose")
                 null
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to fetch or parse price data for $ticker", e)
+            Log.e(TAG, "Failed to fetch or parse chart data for $ticker", e)
             null
         }
     }
@@ -88,11 +97,9 @@ object YahooFinanceScraper {
         }
     }
 
-    // 新增：获取拆股/合股历史记录的函数
     fun fetchSplitHistory(ticker: String, startDate: LocalDate): List<SplitInfo>? {
         val startSeconds = startDate.atStartOfDay(ZoneOffset.UTC).toEpochSecond()
         val endSeconds = LocalDate.now().atStartOfDay(ZoneOffset.UTC).toEpochSecond()
-        // 请求包含拆股事件的URL
         val url = "https://query1.finance.yahoo.com/v8/finance/chart/$ticker?period1=$startSeconds&period2=$endSeconds&interval=1d&events=split"
 
         Log.d(TAG, "Fetching splits for $ticker. URL: $url")
