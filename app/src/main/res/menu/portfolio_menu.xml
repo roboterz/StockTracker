@@ -8,7 +8,7 @@
         app:showAsAction="ifRoom" />
     <item
         android:id="@+id/action_add_cash"
-        android:icon="@drawable/baseline_add_24"
+        android:icon="@drawable/ic_cash"
         android:title="添加现金"
         app:showAsAction="collapseActionView" />
 </menu>

@@ -15,7 +15,7 @@ object YahooFinanceScraper {
             // 使用 Jsoup 连接并获取 JSON 响应体
             val jsonResponse = Jsoup.connect(url)
                 .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
-                .timeout(10000) // 10秒超时
+                .timeout(5000) // 10秒超时
                 .ignoreContentType(true) // 必须设置此项以接收 JSON
                 .execute()
                 .body()

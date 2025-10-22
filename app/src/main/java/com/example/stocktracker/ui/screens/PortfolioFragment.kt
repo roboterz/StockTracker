@@ -44,14 +44,14 @@ class PortfolioFragment : Fragment() {
 
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-
             binding.appBarLayout.updatePadding(top = systemBars.top)
-
             binding.recyclerViewStocks.updatePadding(bottom = systemBars.bottom)
-
             insets
         }
 
+        binding.swipeRefreshLayout.setOnRefreshListener {
+            viewModel.refreshData()
+        }
 
         val portfolioAdapter = PortfolioAdapter { stock ->
             viewModel.selectStock(stock.id)
@@ -59,39 +59,31 @@ class PortfolioFragment : Fragment() {
         }
         binding.recyclerViewStocks.adapter = portfolioAdapter
 
-        binding.swipeRefreshLayout.setOnRefreshListener {
-            viewModel.refreshData()
+        viewLifecycleOwner.lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.uiState.collect { uiState ->
+                    binding.swipeRefreshLayout.isRefreshing = uiState.isRefreshing
+
+                    val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
+                    val filteredUiState = uiState.copy(holdings = activeHoldings)
+
+                    val portfolioItems = mutableListOf<PortfolioListItem>()
+                    portfolioItems.add(PortfolioListItem.Header(filteredUiState))
+                    portfolioItems.add(PortfolioListItem.ProfitLossChart())
+                    if (filteredUiState.holdings.isNotEmpty()) {
+                        portfolioItems.add(PortfolioListItem.Chart(filteredUiState.holdings))
+                    }
+                    filteredUiState.holdings.forEach { stock ->
+                        portfolioItems.add(PortfolioListItem.Stock(stock))
+                    }
+                    portfolioAdapter.submitList(portfolioItems)
+                }
+            }
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                launch {
-                    viewModel.uiState.collect { uiState ->
-                        binding.swipeRefreshLayout.isRefreshing = uiState.isRefreshing
-
-                        val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
-                        val filteredUiState = uiState.copy(holdings = activeHoldings)
-
-
-                        val portfolioItems = mutableListOf<PortfolioListItem>()
-                        portfolioItems.add(PortfolioListItem.Header(filteredUiState))
-                        portfolioItems.add(PortfolioListItem.ProfitLossChart())
-                        if (filteredUiState.holdings.isNotEmpty()) {
-                            portfolioItems.add(PortfolioListItem.Chart(filteredUiState.holdings))
-                        }
-                        filteredUiState.holdings.forEach { stock ->
-                            portfolioItems.add(PortfolioListItem.Stock(stock))
-                        }
-                        portfolioAdapter.submitList(portfolioItems)
-                    }
-                }
-
-                // 收集并响应Toast事件
-                launch {
-                    viewModel.toastEvents.collectLatest { message ->
-                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
-                    }
-                }
+            viewModel.toastEvents.collectLatest { message ->
+                Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -100,6 +92,10 @@ class PortfolioFragment : Fragment() {
                 R.id.action_add -> {
                     viewModel.prepareNewTransaction(null)
                     findNavController().navigate(R.id.action_portfolioFragment_to_addOrEditTransactionFragment)
+                    true
+                }
+                R.id.action_add_cash -> {
+                    findNavController().navigate(R.id.action_portfolioFragment_to_cashTransactionFragment)
                     true
                 }
                 else -> false
