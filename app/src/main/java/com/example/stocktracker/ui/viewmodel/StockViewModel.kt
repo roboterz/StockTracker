@@ -113,10 +113,17 @@ class StockViewModel(application: Application) : ViewModel() {
                     async(Dispatchers.IO) {
                         val priceData = YahooFinanceScraper.fetchStockData(holding.id)
                         val firstTransactionDate = holding.transactions.minOfOrNull { it.date }
-                        val dividendHistory = if (firstTransactionDate != null) {
-                            YahooFinanceScraper.fetchDividendHistory(holding.id, firstTransactionDate)
-                        } else null
-                        Triple(holding, priceData, dividendHistory)
+                        val dividendHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchDividendHistory(holding.id, firstTransactionDate) else null
+                        // 新增：获取拆股历史
+                        val splitHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchSplitHistory(holding.id, firstTransactionDate) else null
+
+                        // 将所有数据打包
+                        object {
+                            val holding = holding
+                            val priceData = priceData
+                            val dividendHistory = dividendHistory
+                            val splitHistory = splitHistory
+                        }
                     }
                 }
 
@@ -124,38 +131,42 @@ class StockViewModel(application: Application) : ViewModel() {
                 var successfulFetches = 0
                 val newPriceData = mutableMapOf<String, YahooFinanceScraper.ScrapedData>()
 
-                // *** 关键修复：将所有分红写入操作收集起来并等待它们全部完成 ***
-                val dividendWriteJobs = mutableListOf<Job>()
-                results.forEach { (holding, _, dividendHistory) ->
-                    dividendHistory?.forEach { dividendInfo ->
-                        val alreadyExists = holding.transactions.any { it.type == TransactionType.DIVIDEND && it.date == dividendInfo.date }
+                val dbWriteJobs = mutableListOf<Job>()
+                results.forEach { data ->
+                    // 处理分红
+                    data.dividendHistory?.forEach { dividendInfo ->
+                        val alreadyExists = data.holding.transactions.any { it.type == TransactionType.DIVIDEND && it.date == dividendInfo.date }
                         if (!alreadyExists) {
-                            val sharesOnDate = holding.getQuantityOnDate(dividendInfo.date)
+                            val sharesOnDate = data.holding.getQuantityOnDate(dividendInfo.date)
                             if (sharesOnDate > 0) {
-                                val dividendTransaction = Transaction(
-                                    date = dividendInfo.date,
-                                    type = TransactionType.DIVIDEND,
-                                    quantity = sharesOnDate,
-                                    price = dividendInfo.dividend
-                                )
-                                // 启动一个新协程来保存分红，并将其添加到任务列表
-                                val job = launch(Dispatchers.IO) {
-                                    saveOrUpdateTransactionInternal(dividendTransaction, holding.id, "", holding.name)
-                                }
-                                dividendWriteJobs.add(job)
+                                val dividendTransaction = Transaction(date = dividendInfo.date, type = TransactionType.DIVIDEND, quantity = sharesOnDate, price = dividendInfo.dividend)
+                                dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(dividendTransaction, data.holding.id, "", data.holding.name) })
                             }
                         }
                     }
-                }
-                // 等待所有分红保存任务完成
-                dividendWriteJobs.joinAll()
 
-                // 在所有分红都写入数据库后，再处理价格更新
-                results.forEach { (holding, priceData, _) ->
-                    priceData?.let {
+                    // 处理拆股/合股
+                    data.splitHistory?.forEach { splitInfo ->
+                        val alreadyExists = data.holding.transactions.any { it.type == TransactionType.SPLIT && it.date == splitInfo.date }
+                        if (!alreadyExists) {
+                            val splitTransaction = Transaction(
+                                date = splitInfo.date,
+                                type = TransactionType.SPLIT,
+                                quantity = splitInfo.numerator.toInt(), // 分子
+                                price = splitInfo.denominator          // 分母
+                            )
+                            dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(splitTransaction, data.holding.id, "", data.holding.name) })
+                        }
+                    }
+                }
+
+                dbWriteJobs.joinAll()
+
+                results.forEach { data ->
+                    data.priceData?.let {
                         successfulFetches++
-                        stockDao.updateStock(holding.toEntity().copy(currentPrice = it.currentPrice))
-                        newPriceData[holding.id] = it
+                        stockDao.updateStock(data.holding.toEntity().copy(currentPrice = it.currentPrice))
+                        newPriceData[data.holding.id] = it
                     }
                 }
 
@@ -188,7 +199,6 @@ class StockViewModel(application: Application) : ViewModel() {
         _uiState.update { it.copy(transactionToEditId = transactionId) }
     }
 
-    // UI调用的公共函数
     fun saveOrUpdateTransaction(
         transaction: Transaction,
         stockId: String?,
@@ -201,7 +211,6 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
-    // 内部使用的 suspend 函数
     private suspend fun saveOrUpdateTransactionInternal(
         transaction: Transaction,
         stockId: String?,
@@ -229,12 +238,18 @@ class StockViewModel(application: Application) : ViewModel() {
             stockDao.insertTransaction(transaction.toEntity(newStock.id))
         }
 
+        // 拆股/合股事件不影响现金
+        if (transaction.type == TransactionType.SPLIT) {
+            return
+        }
+
         val cashTransaction = when (transaction.type) {
             TransactionType.BUY -> CashTransaction(date = transaction.date, type = CashTransactionType.WITHDRAWAL, amount = (transaction.quantity * transaction.price) + transaction.fee, stockTransactionId = transaction.id)
             TransactionType.SELL -> CashTransaction(date = transaction.date, type = CashTransactionType.DEPOSIT, amount = (transaction.quantity * transaction.price) - transaction.fee, stockTransactionId = transaction.id)
             TransactionType.DIVIDEND -> CashTransaction(date = transaction.date, type = CashTransactionType.DEPOSIT, amount = transaction.quantity * transaction.price, stockTransactionId = transaction.id)
+            else -> null
         }
-        cashDao.insertCashTransaction(cashTransaction.toEntity())
+        cashTransaction?.let { cashDao.insertCashTransaction(it.toEntity()) }
     }
 
     fun addCashTransaction(amount: Double, type: CashTransactionType) {
