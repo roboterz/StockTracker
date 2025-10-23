@@ -12,9 +12,9 @@ object SampleData {
             ticker = "NASDAQ:TSLA",
             currentPrice = 223.52,
             transactions = listOf(
-                Transaction(date = LocalDate.of(2025, 9, 5), type = TransactionType.BUY, quantity = 10, price = 164.67),
-                Transaction(date = LocalDate.of(2025, 9, 9), type = TransactionType.BUY, quantity = 20, price = 167.48),
-                Transaction(date = LocalDate.of(2025, 9, 10), type = TransactionType.SELL, quantity = 5, price = 178.09)
+                Transaction(date = LocalDate.of(2025, 9, 5), type = TransactionType.BUY, quantity = 10.0, price = 164.67),
+                Transaction(date = LocalDate.of(2025, 9, 9), type = TransactionType.BUY, quantity = 20.0, price = 167.48),
+                Transaction(date = LocalDate.of(2025, 9, 10), type = TransactionType.SELL, quantity = 5.0, price = 178.09)
             )
         ),
         StockHolding(
@@ -23,10 +23,10 @@ object SampleData {
             ticker = "NASDAQ:NVDA",
             currentPrice = 177.56,
             transactions = listOf(
-                Transaction(date = LocalDate.of(2025, 9, 4), type = TransactionType.BUY, quantity = 2, price = 170.67),
-                Transaction(date = LocalDate.of(2025, 9, 5), type = TransactionType.BUY, quantity = 2, price = 165.13),
+                Transaction(date = LocalDate.of(2025, 9, 4), type = TransactionType.BUY, quantity = 2.0, price = 170.67),
+                Transaction(date = LocalDate.of(2025, 9, 5), type = TransactionType.BUY, quantity = 2.0, price = 165.13),
                 // 新增一条分红记录
-                Transaction(date = LocalDate.of(2025, 9, 11), type = TransactionType.DIVIDEND, quantity = 4, price = 1.99) // 4 * 1.99 = 7.96
+                Transaction(date = LocalDate.of(2025, 9, 11), type = TransactionType.DIVIDEND, quantity = 4.0, price = 1.99) // 4 * 1.99 = 7.96
             )
         )
     )
