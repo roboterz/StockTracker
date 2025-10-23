@@ -1,5 +1,6 @@
 package com.example.stocktracker.ui
 
+import android.annotation.SuppressLint
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.view.LayoutInflater
@@ -77,6 +78,8 @@ class PortfolioAdapter(
     // --- ViewHolders ---
 
     class HeaderViewHolder(private val binding: ListItemPortfolioHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
+
+        @SuppressLint("SetTextI18n")
         fun bind(uiState: StockUiState) {
             val holdings = uiState.holdings
             val totalMarketValue = holdings.sumOf { it.marketValue }
@@ -92,18 +95,18 @@ class PortfolioAdapter(
             binding.header.textViewMarketValue.text = formatCurrency(totalMarketValue, false)
 
             binding.header.metricDailyPl.metricLabel.text = "当日盈亏"
-            binding.header.metricDailyPl.metricValue.text = formatCurrency(totalDailyPL, false)
-            binding.header.metricDailyPl.metricPercent.text = String.format("%.2f%%", totalDailyPLPercent)
+            binding.header.metricDailyPl.metricValue.text = formatCurrency(totalDailyPL, true)
+            binding.header.metricDailyPl.metricPercent.text = "${formatCurrency(totalDailyPLPercent, true)}%"
             updateMetricColor(binding.header.metricDailyPl.metricValue, binding.header.metricDailyPl.metricPercent, totalDailyPL)
 
             binding.header.metricHoldingPl.metricLabel.text = "持仓盈亏"
-            binding.header.metricHoldingPl.metricValue.text = formatCurrency(totalHoldingPL, false)
-            binding.header.metricHoldingPl.metricPercent.text = String.format("%.2f%%", totalHoldingPLPercent)
+            binding.header.metricHoldingPl.metricValue.text = formatCurrency(totalHoldingPL, true)
+            binding.header.metricHoldingPl.metricPercent.text = "${formatCurrency(totalHoldingPLPercent, true)}%"
             updateMetricColor(binding.header.metricHoldingPl.metricValue, binding.header.metricHoldingPl.metricPercent, totalHoldingPL)
 
             binding.header.metricTotalPl.metricLabel.text = "总盈亏"
             binding.header.metricTotalPl.metricValue.text = formatCurrency(totalPL, true)
-            binding.header.metricTotalPl.metricPercent.text = String.format("%s%.2f%%", if(totalPL >= 0) "+" else "-", totalPLPercent.absoluteValue)
+            binding.header.metricTotalPl.metricPercent.text = "${formatCurrency(totalPLPercent, true)}%"
             updateMetricColor(binding.header.metricTotalPl.metricValue, binding.header.metricTotalPl.metricPercent, totalPL)
 
             binding.header.metricCash.metricLabel.text = "现金"
