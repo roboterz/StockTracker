@@ -1,19 +1,24 @@
 package com.example.stocktracker.data.database
 
 import android.content.Context
+import android.util.Log
 import androidx.room.*
+import androidx.sqlite.db.SupportSQLiteDatabase // Import SupportSQLiteDatabase
 import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.SampleData
 import com.example.stocktracker.data.TransactionType
 import com.example.stocktracker.data.toEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
+import org.json.JSONObject // Import JSONObject
+import java.io.BufferedReader // Import BufferedReader
+import java.io.InputStreamReader // Import InputStreamReader
 import java.time.LocalDate
 import java.util.concurrent.Executors
 
 // --- 数据库层 (Room Database Layer) ---
 
-// 数据库实体 (Entities)
+// ... (StockHoldingEntity, TransactionEntity, CashTransactionEntity remain the same) ...
 @Entity(tableName = "stocks")
 data class StockHoldingEntity(
     @PrimaryKey val id: String,
@@ -66,6 +71,7 @@ data class StockWithTransactions(
 
 // Room类型转换器
 class Converters {
+    // ... (Existing converters remain the same) ...
     @TypeConverter
     fun fromTimestamp(value: Long?): LocalDate? {
         return value?.let { LocalDate.ofEpochDay(it) }
@@ -102,6 +108,7 @@ class Converters {
 // 数据访问对象 (DAO)
 @Dao
 interface StockDao {
+    // ... (Existing methods remain the same) ...
     @androidx.room.Transaction
     @Query("SELECT * FROM stocks")
     fun getAllStocksWithTransactions(): Flow<List<StockWithTransactions>>
@@ -125,7 +132,7 @@ interface StockDao {
     suspend fun deleteTransactionById(transactionId: String)
 }
 
-// 新增：现金交易的 DAO
+// ... (CashDao remains the same) ...
 @Dao
 interface CashDao {
     @Query("SELECT * FROM cash_transactions ORDER BY date DESC")
@@ -140,16 +147,19 @@ interface CashDao {
 
 
 // 数据库
-@Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class], version = 3) // 版本升至3
+// *** 更新版本号，添加 StockNameEntity ***
+@Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class, StockNameEntity::class], version = 4)
 @TypeConverters(Converters::class)
 abstract class StockDatabase : RoomDatabase() {
     abstract fun stockDao(): StockDao
-    abstract fun cashDao(): CashDao // 新增
+    abstract fun cashDao(): CashDao
+    abstract fun stockNameDao(): StockNameDao // *** 新增 StockNameDao ***
 
     companion object {
         @Volatile
         private var INSTANCE: StockDatabase? = null
 
+        // *** 修改 getDatabase 以包含新的 DAO 和预填充逻辑 ***
         fun getDatabase(context: Context): StockDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -158,26 +168,70 @@ abstract class StockDatabase : RoomDatabase() {
                     "stock_database"
                 )
                     .addCallback(object : Callback() {
-                        override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
+                            // 在数据库创建时执行预填充
                             Executors.newSingleThreadExecutor().execute {
                                 INSTANCE?.let { database ->
-                                    runBlocking {
-                                        SampleData.holdings.forEach{ stock ->
-                                            database.stockDao().insertStock(stock.toEntity())
-                                            stock.transactions.forEach { trans ->
-                                                database.stockDao().insertTransaction(trans.toEntity(stock.id))
-                                            }
-                                        }
-                                    }
+                                    // 预填充 SampleData (如果需要)
+                                    // prePopulateSampleData(database)
+                                    // *** 预填充股票名称数据 ***
+                                    prePopulateStockNames(context, database)
                                 }
                             }
                         }
+                        // 如果需要，可以在 onOpen 中也添加填充逻辑，以处理数据库已存在但表为空的情况
+                        // override fun onOpen(db: SupportSQLiteDatabase) {
+                        //     super.onOpen(db)
+                        //     // Check if stock_names table is empty and populate if needed
+                        // }
                     })
-                    .fallbackToDestructiveMigration() // 添加迁移策略
+                    .fallbackToDestructiveMigration() // 迁移策略
                     .build()
                 INSTANCE = instance
                 instance
+            }
+        }
+
+        // 辅助函数：预填充 SampleData
+        private fun prePopulateSampleData(database: StockDatabase) {
+            runBlocking {
+                SampleData.holdings.forEach{ stock ->
+                    database.stockDao().insertStock(stock.toEntity())
+                    stock.transactions.forEach { trans ->
+                        database.stockDao().insertTransaction(trans.toEntity(stock.id))
+                    }
+                }
+            }
+        }
+
+        // *** 新增辅助函数：从 assets 读取 JSON 并填充 stock_names 表 ***
+        private fun prePopulateStockNames(context: Context, database: StockDatabase) {
+            try {
+                context.assets.open("us-stock-code-zh.json").use { inputStream ->
+                    BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                        val jsonString = reader.readText()
+                        val jsonObject = JSONObject(jsonString)
+                        val stockNamesList = mutableListOf<StockNameEntity>()
+                        val keys = jsonObject.keys()
+                        while (keys.hasNext()) {
+                            val ticker = keys.next()
+                            val name = jsonObject.getString(ticker)
+                            if (ticker.isNotBlank() && name.isNotBlank()) {
+                                stockNamesList.add(StockNameEntity(ticker = ticker.uppercase(), chineseName = name))
+                            }
+                        }
+                        if (stockNamesList.isNotEmpty()) {
+                            runBlocking {
+                                database.stockNameDao().insertAll(stockNamesList)
+                                Log.d("StockDatabase", "Successfully pre-populated ${stockNamesList.size} stock names.")
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("StockDatabase", "Error pre-populating stock names from JSON", e)
+                // 处理错误，例如显示 Toast 或记录日志
             }
         }
     }
