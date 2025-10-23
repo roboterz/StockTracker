@@ -1,5 +1,6 @@
 package com.example.stocktracker.ui.screens
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -90,6 +91,7 @@ class StockDetailFragment : Fragment() {
         }
     }
 
+    @SuppressLint("SetTextI18n")
     private fun updateUi(stock: StockHolding) {
         binding.toolbar.title = stock.name
         // *** 关键修复：设置工具栏的副标题为股票代码 ***
@@ -98,17 +100,17 @@ class StockDetailFragment : Fragment() {
 
         binding.header.metricDailyPl.metricLabel.text = "当日盈亏"
         binding.header.metricDailyPl.metricValue.text = formatCurrency(stock.dailyPL, true)
-        binding.header.metricDailyPl.metricPercent.text = String.format("%s%.2f%%", if(stock.dailyPL >= 0) "+" else "", stock.dailyPLPercent.absoluteValue)
+        binding.header.metricDailyPl.metricPercent.text = "${formatCurrency(stock.dailyPLPercent, true)}%"
         updateMetricColor(binding.header.metricDailyPl.metricValue, binding.header.metricDailyPl.metricPercent, stock.dailyPL)
 
         binding.header.metricHoldingPl.metricLabel.text = "持仓盈亏"
         binding.header.metricHoldingPl.metricValue.text = formatCurrency(stock.holdingPL, true)
-        binding.header.metricHoldingPl.metricPercent.text = String.format("%s%.2f%%", if(stock.holdingPL >= 0) "+" else "", stock.holdingPLPercent.absoluteValue)
+        binding.header.metricHoldingPl.metricPercent.text = "${formatCurrency(stock.holdingPLPercent, true)}%"
         updateMetricColor(binding.header.metricHoldingPl.metricValue, binding.header.metricHoldingPl.metricPercent, stock.holdingPL)
 
         binding.header.metricTotalPl.metricLabel.text = "总盈亏"
         binding.header.metricTotalPl.metricValue.text = formatCurrency(stock.totalPL, true)
-        binding.header.metricTotalPl.metricPercent.text = String.format("%s%.2f%%", if(stock.totalPL >= 0) "+" else "", stock.totalPLPercent.absoluteValue)
+        binding.header.metricTotalPl.metricPercent.text = "${formatCurrency(stock.totalPLPercent, true)}%"
         updateMetricColor(binding.header.metricTotalPl.metricValue, binding.header.metricTotalPl.metricPercent, stock.totalPL)
 
         binding.header.metricDividend.metricLabel.text = "累计分红"
