@@ -370,6 +370,7 @@ class PortfolioAdapter(
     }
 
     class StockViewHolder(private val binding: ListItemStockBinding) : RecyclerView.ViewHolder(binding.root) {
+        @SuppressLint("SetTextI18n")
         fun bind(stock: StockHolding, onStockClicked: (StockHolding) -> Unit) {
             itemView.setOnClickListener { onStockClicked(stock) }
 
@@ -378,10 +379,10 @@ class PortfolioAdapter(
             binding.textViewMarketValue.text = formatCurrency(stock.marketValue, false)
             binding.textViewTotalCost.text = "(USD)${formatCurrency(stock.totalCost - stock.totalSoldValue, false)}"
             binding.textViewDailyPlValue.text = formatCurrency(stock.dailyPL, true)
-            binding.textViewDailyPlPercent.text = String.format("%.2f%%", stock.dailyPLPercent)
+            binding.textViewDailyPlPercent.text = "${formatCurrency(stock.dailyPLPercent, true)}%"
             updatePlColor(binding.textViewDailyPlValue, binding.textViewDailyPlPercent, stock.dailyPL)
             binding.textViewTotalPlValue.text = formatCurrency(stock.totalPL, true)
-            binding.textViewTotalPlPercent.text = String.format("%.2f%%", stock.totalPLPercent)
+            binding.textViewTotalPlPercent.text = "${formatCurrency(stock.totalPLPercent, true)}%"
             updatePlColor(binding.textViewTotalPlValue, binding.textViewTotalPlPercent, stock.totalPL)
         }
 

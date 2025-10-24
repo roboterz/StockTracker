@@ -12,13 +12,13 @@
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingVertical="12dp">
+        android:paddingVertical="14dp">
 
         <!-- Column 1: Name & Ticker -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="2.2"
+            android:layout_weight="1.5"
             android:orientation="vertical">
 
             <TextView
@@ -37,7 +37,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@android:color/darker_gray"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 tools:text="NASDAQ:SBET" />
         </LinearLayout>
 
@@ -62,7 +62,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:textColor="@android:color/darker_gray"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 tools:text="(USD)20,643.20" />
         </LinearLayout>
 
@@ -86,7 +86,7 @@
                 android:id="@+id/text_view_daily_pl_percent"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 tools:text="-5.81%"
                 tools:textColor="@color/negative_red" />
         </LinearLayout>
@@ -111,7 +111,7 @@
                 android:id="@+id/text_view_total_pl_percent"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 tools:text="-44.43%"
                 tools:textColor="@color/negative_red" />
         </LinearLayout>
