@@ -31,7 +31,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="24dp"
         android:layout_marginBottom="8dp"
         android:text="历史记录"
         android:textColor="@android:color/white"
@@ -44,7 +44,8 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
-        android:paddingVertical="4dp">
+        android:layout_marginTop="4dp"
+        android:paddingVertical="7dp">
 
         <TextView
             android:layout_width="0dp"
@@ -52,14 +53,14 @@
             android:layout_weight="1.5"
             android:text="日期"
             android:textColor="#CCAAAAAA"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="类型"
             android:textColor="#CCAAAAAA"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -67,7 +68,7 @@
             android:gravity="end"
             android:text="数量"
             android:textColor="#CCAAAAAA"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -75,7 +76,7 @@
             android:gravity="end"
             android:text="价格/金额"
             android:textColor="#CCAAAAAA"
-            android:textSize="11sp" />
+            android:textSize="12sp" />
     </LinearLayout>
 
     <View
