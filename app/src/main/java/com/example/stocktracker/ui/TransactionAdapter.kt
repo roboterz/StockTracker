@@ -52,7 +52,7 @@ class TransactionAdapter(private val onItemClicked: (Transaction) -> Unit) :
                     binding.textViewType.text = "买入"
                     binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
                     binding.textViewQuantity.text = DecimalFormat("#.##").format(transaction.quantity).toString()
-                    binding.textViewPrice.text = DecimalFormat("#.####").format(transaction.price)  //String.format(Locale.US, "%.3f", transaction.price)
+                    binding.textViewPrice.text = DecimalFormat("#.#####").format(transaction.price)  //String.format(Locale.US, "%.3f", transaction.price)
                     binding.textViewAmount.text = formatCurrency(transaction.quantity * transaction.price, false)
                     binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
                 }
@@ -60,7 +60,7 @@ class TransactionAdapter(private val onItemClicked: (Transaction) -> Unit) :
                     binding.textViewType.text = "卖出"
                     binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
                     binding.textViewQuantity.text = DecimalFormat("#.##").format(transaction.quantity).toString()
-                    binding.textViewPrice.text = DecimalFormat("#.####").format(transaction.price)  // String.format(Locale.US, "%.3f", transaction.price)
+                    binding.textViewPrice.text = DecimalFormat("#.#####").format(transaction.price)  // String.format(Locale.US, "%.3f", transaction.price)
                     binding.textViewAmount.text = formatCurrency(transaction.quantity * transaction.price, false)
                     binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
                 }
