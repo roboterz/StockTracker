@@ -47,7 +47,7 @@ class StockDetailFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        // *** 关键修复：处理窗口边衬区 ***
+        // *** Key Fix: Handle window insets ***
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 
@@ -94,7 +94,7 @@ class StockDetailFragment : Fragment() {
     @SuppressLint("SetTextI18n")
     private fun updateUi(stock: StockHolding) {
         binding.toolbar.title = stock.name
-        // *** 关键修复：设置工具栏的副标题为股票代码 ***
+        // *** Key Fix: Set toolbar subtitle to ticker ***
         binding.toolbar.subtitle = stock.ticker
         binding.header.textViewMarketValue.text = formatCurrency(stock.marketValue, false)
 
@@ -122,13 +122,14 @@ class StockDetailFragment : Fragment() {
         binding.header.layoutInfoCurrentPrice.infoValue.text = stock.currentPrice.toString()
 
         binding.header.layoutInfoCostBasis.infoLabel.text = "成本价"
-        binding.header.layoutInfoCostBasis.infoValue.text = formatCurrency(stock.costBasis, false)
+        binding.header.layoutInfoCostBasis.infoValue.text = DecimalFormat("#.####").format( stock.costBasis).toString()
 
         binding.header.layoutInfoQuantity.infoLabel.text = "数量"
         binding.header.layoutInfoQuantity.infoValue.text = DecimalFormat("#.##").format(stock.totalQuantity).toString()
 
-        binding.header.layoutInfoTotalCost.infoLabel.text = "成本"
-        binding.header.layoutInfoTotalCost.infoValue.text = formatCurrency(stock.totalCost - stock.totalSoldValue, false)
+        binding.header.layoutInfoTotalCost.infoLabel.text = "持仓总成本" // Update label
+        // *** 修复：现在直接显示 totalCost，它代表剩余持仓的总成本（已含手续费）***
+        binding.header.layoutInfoTotalCost.infoValue.text = formatCurrency(stock.totalCost, false)
     }
 
     private fun updateMetricColor(valueView: TextView, percentView: TextView, value: Double) {
@@ -147,4 +148,3 @@ class StockDetailFragment : Fragment() {
         _binding = null
     }
 }
-

@@ -88,9 +88,15 @@ class PortfolioAdapter(
             val totalPL = holdings.sumOf { it.totalPL }
             val cash = uiState.cashBalance
 
+            // Re-calculate the cost basis for percentage calculation for the whole portfolio
+            // Total cost is the sum of totalCost of all holdings.
+            val totalCost = holdings.sumOf { it.totalCost }
+
+            // Using totalMarketValue + (totalCost - totalSoldValue) is wrong for percentage base.
+            // totalCost is now the total cost of remaining shares.
             val totalDailyPLPercent = if (totalMarketValue - totalDailyPL != 0.0) (totalDailyPL / (totalMarketValue - totalDailyPL)) * 100 else 0.0
-            val totalHoldingPLPercent = if (totalMarketValue - totalHoldingPL != 0.0) (totalHoldingPL / (totalMarketValue - totalHoldingPL)) * 100 else 0.0
-            val totalPLPercent = if (totalMarketValue - totalPL != 0.0) (totalPL / (totalMarketValue - totalPL)) * 100 else 0.0
+            val totalHoldingPLPercent = if (totalCost > 0) (totalHoldingPL / totalCost) * 100 else 0.0 // Corrected calculation base
+            val totalPLPercent = if (totalCost > 0) (totalPL / totalCost) * 100 else 0.0 // Corrected calculation base
 
             binding.header.textViewMarketValue.text = formatCurrency(totalMarketValue, false)
 
@@ -310,7 +316,7 @@ class PortfolioAdapter(
                 return
             }
 
-            // *** 关键修复：先排序，再分组 ***
+            // *** Key Fix: Sort first, then group ***
             val sortedHoldings = holdings.sortedByDescending { it.marketValue }
             val holdingsForChart: List<Pair<String, Double>>
 
@@ -377,7 +383,8 @@ class PortfolioAdapter(
             binding.textViewName.text = stock.name
             binding.textViewTicker.text = stock.ticker
             binding.textViewMarketValue.text = formatCurrency(stock.marketValue, false)
-            binding.textViewTotalCost.text = "(USD)${formatCurrency(stock.totalCost - stock.totalSoldValue, false)}"
+            // *** 修复：现在直接显示 totalCost，它代表剩余持仓的总成本（已含手续费）***
+            binding.textViewTotalCost.text = "(USD)${formatCurrency(stock.totalCost, false)}"
             binding.textViewDailyPlValue.text = formatCurrency(stock.dailyPL, true)
             binding.textViewDailyPlPercent.text = "${formatCurrency(stock.dailyPLPercent, true)}%"
             updatePlColor(binding.textViewDailyPlValue, binding.textViewDailyPlPercent, stock.dailyPL)
@@ -417,4 +424,3 @@ class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioListItem>() {
         return oldItem == newItem
     }
 }
-
