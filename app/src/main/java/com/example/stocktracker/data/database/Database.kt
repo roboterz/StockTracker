@@ -122,6 +122,14 @@ interface StockDao {
     @Update
     suspend fun updateStock(stock: StockHoldingEntity)
 
+    // *** 新增：根据股票ID查询所有交易 ***
+    @Query("SELECT * FROM transactions WHERE stockId = :stockId")
+    suspend fun getTransactionsByStockId(stockId: String): List<TransactionEntity>
+
+    // *** 新增：根据股票ID删除股票实体 ***
+    @Query("DELETE FROM stocks WHERE id = :stockId")
+    suspend fun deleteStockById(stockId: String)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: TransactionEntity)
 
@@ -132,7 +140,7 @@ interface StockDao {
     suspend fun deleteTransactionById(transactionId: String)
 }
 
-// ... (CashDao remains the same) ...
+// ... (CashDao, Database, and Companion object remain the same) ...
 @Dao
 interface CashDao {
     @Query("SELECT * FROM cash_transactions ORDER BY date DESC")
@@ -236,4 +244,3 @@ abstract class StockDatabase : RoomDatabase() {
         }
     }
 }
-
