@@ -10,9 +10,8 @@ import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.data.Transaction
 import com.example.stocktracker.data.TransactionType
-import com.example.stocktracker.data.database.StockDatabase // Keep this import
+import com.example.stocktracker.data.database.StockDatabase
 import com.example.stocktracker.data.database.StockNameEntity
-// *** 移除 StockNameDao 的单独导入，因为它现在通过 StockDatabase 访问 ***
 import com.example.stocktracker.data.toEntity
 import com.example.stocktracker.data.toUIModel
 import com.example.stocktracker.scraper.YahooFinanceScraper
@@ -47,12 +46,12 @@ data class StockUiState(
 
 
 class StockViewModel(application: Application) : ViewModel() {
-    private val db = StockDatabase.getDatabase(application) // *** 获取数据库实例 ***
+    private val db = StockDatabase.getDatabase(application)
     private val stockDao = db.stockDao()
     private val cashDao = db.cashDao()
-    private val stockNameDao = db.stockNameDao() // *** 获取 StockNameDao 实例 ***
+    private val stockNameDao = db.stockNameDao()
 
-    // ... (StateFlows, SharedFlows, init block remain mostly the same) ...
+    // ... (StateFlows, SharedFlows, isInitialLoad, init block remain mostly the same) ...
     private val _uiState = MutableStateFlow(StockUiState())
     val uiState: StateFlow<StockUiState> = _uiState.asStateFlow()
 
@@ -83,7 +82,6 @@ class StockViewModel(application: Application) : ViewModel() {
                             currentPrice = prices.currentPrice,
                             dailyPL = dailyPL,
                             dailyPLPercent = dailyPLPercent
-                            // *** 确保名称不会被网络请求覆盖（如果本地有的话）***
                             // name = priceDataMap[dbHolding.id]?.name ?: dbHolding.name // Optional: keep existing name if network fails?
                         )
                     } ?: dbHolding
@@ -121,7 +119,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
                 val deferredJobs = holdingsToRefresh.map { holding ->
                     async(Dispatchers.IO) {
-                        // *** 在刷新时也尝试从数据库获取名称，以防 StockHolding 对象中的名称过时 ***
+                        // 在刷新时也尝试从数据库获取名称，以防 StockHolding 对象中的名称过时
                         val dbName = stockNameDao.getChineseNameByTicker(holding.id.uppercase())
                         val priceData = YahooFinanceScraper.fetchStockData(holding.id)
                         val finalName = dbName ?: priceData?.name ?: holding.name // 优先使用数据库名称
@@ -130,7 +128,7 @@ class StockViewModel(application: Application) : ViewModel() {
                         val dividendHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchDividendHistory(holding.id, firstTransactionDate) else null
                         val splitHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchSplitHistory(holding.id, firstTransactionDate) else null
 
-                        // *** 将最终确定的名称传递下去 ***
+                        // 将最终确定的名称传递下去
                         object {
                             val holding = holding.copy(name = finalName) // 更新持有对象的名称
                             val priceData = priceData?.copy(name = finalName) // 更新价格数据中的名称
@@ -177,7 +175,7 @@ class StockViewModel(application: Application) : ViewModel() {
                 results.forEach { data ->
                     data.priceData?.let {
                         successfulFetches++
-                        // *** 更新股票时也更新名称 ***
+                        // 更新股票时也更新名称
                         stockDao.updateStock(data.holding.toEntity().copy(currentPrice = it.currentPrice, name = data.holding.name))
                         newPriceData[data.holding.id] = it
                     }
@@ -202,7 +200,7 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 
 
-    // *** 修改 fetchInitialStockData 函数 ***
+    // ... (fetchInitialStockData, selectStock, prepareNewTransaction, prepareEditTransaction remain the same) ...
     suspend fun fetchInitialStockData(ticker: String): YahooFinanceScraper.ScrapedData? {
         val upperCaseTicker = ticker.uppercase()
         return withContext(Dispatchers.IO) {
@@ -248,8 +246,6 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
-
-    // ... (selectStock, prepareNewTransaction, prepareEditTransaction remain the same) ...
     fun selectStock(stockId: String) {
         _uiState.update { it.copy(selectedStockId = stockId) }
     }
@@ -263,7 +259,7 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 
 
-    // *** 修改 saveOrUpdateTransaction 和 Internal 函数以确保使用正确的名称 ***
+    // ... (saveOrUpdateTransaction and Internal function remain the same) ...
     fun saveOrUpdateTransaction(
         transaction: Transaction,
         stockId: String?, // Ticker of existing stock being edited, or null if adding new
@@ -271,7 +267,7 @@ class StockViewModel(application: Application) : ViewModel() {
         stockName: String // Name (either from DB/fetch or entered by user)
     ) {
         viewModelScope.launch {
-            // *** 确保传递的 stockName 是最终确定的名称 ***
+            // 确保传递的 stockName 是最终确定的名称
             saveOrUpdateTransactionInternal(transaction, stockId, newStockIdentifier, stockName)
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
@@ -281,7 +277,7 @@ class StockViewModel(application: Application) : ViewModel() {
         transaction: Transaction,
         stockId: String?,
         newStockIdentifier: String,
-        stockName: String // *** 接收最终确定的名称 ***
+        stockName: String // 接收最终确定的名称
     ) {
         val idToProcess = (stockId ?: newStockIdentifier).uppercase()
         if (idToProcess.isBlank()) return
@@ -295,11 +291,11 @@ class StockViewModel(application: Application) : ViewModel() {
 
         val existingStock = stockDao.getStockById(idToProcess)
         if (existingStock != null) {
-            // *** 更新股票时使用传入的 stockName ***
+            // 更新股票时使用传入的 stockName
             stockDao.updateStock(existingStock.copy(name = stockName))
             stockDao.insertTransaction(transaction.toEntity(idToProcess))
         } else {
-            // *** 创建新股票时使用传入的 stockName ***
+            // 创建新股票时使用传入的 stockName
             val newStock = StockHolding(
                 id = idToProcess, name = stockName, ticker = idToProcess, // Use idToProcess also for ticker initially
                 currentPrice = transaction.price, transactions = emptyList() // Initial price guess
@@ -334,7 +330,7 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 
 
-    // ... (addCashTransaction, deleteTransaction remain the same) ...
+    // ... (addCashTransaction remains the same) ...
     fun addCashTransaction(amount: Double, type: CashTransactionType) {
         viewModelScope.launch(Dispatchers.IO) {
             if (amount <= 0) {
@@ -347,11 +343,49 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
+    /**
+     * 删除指定的交易记录，并根据交易类型清理相关的自动生成记录（分红/拆股/合股）。
+     */
     fun deleteTransaction(transactionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            stockDao.deleteTransactionById(transactionId)
-            cashDao.deleteByStockTransactionId(transactionId) // Also delete linked cash transaction
-            _navigationEvents.emit(NavigationEvent.NavigateBack) // Navigate back after deletion
+            val stock = _uiState.value.selectedStock
+            val transactionToDelete = stock.transactions.find { it.id == transactionId }
+
+            if (transactionToDelete != null) {
+                // 1. 删除交易本身和关联的现金记录
+                stockDao.deleteTransactionById(transactionId)
+                cashDao.deleteByStockTransactionId(transactionId)
+
+                // 2. 如果删除的是 Buy 或 Sell 这种核心交易，则需要清理所有自动生成的特殊交易
+                if (transactionToDelete.type == TransactionType.BUY || transactionToDelete.type == TransactionType.SELL) {
+                    val specialTypes = listOf(TransactionType.DIVIDEND, TransactionType.SPLIT)
+
+                    // 删除该股票所有类型为 DIVIDEND 或 SPLIT 的交易记录
+                    val transactionsToRemove = stock.transactions.filter {
+                        it.type in specialTypes && it.id != transactionId
+                    }
+
+                    transactionsToRemove.forEach { t ->
+                        stockDao.deleteTransactionById(t.id)
+                        // 分红交易会生成关联的现金记录，需要删除
+                        cashDao.deleteByStockTransactionId(t.id)
+                    }
+
+                    Log.d("StockViewModel", "Deleted ${transactionsToRemove.size} dividend/split transactions for ${stock.id}.")
+
+                    // 由于删除了核心交易和所有特殊交易，需要再次刷新价格以重新获取特殊交易
+                    launch { refreshData() }
+                }
+
+                // 3. 如果删除后该股票没有剩余交易记录，则删除该股票持有实体
+                val remainingTransactions = stockDao.getTransactionsByStockId(stock.id)
+                if (remainingTransactions.isEmpty()) {
+                    stockDao.deleteStockById(stock.id)
+                    _uiState.update { it.copy(selectedStockId = null) } // 清理选中状态
+                }
+
+                _navigationEvents.emit(NavigationEvent.NavigateBack) // Navigate back after deletion
+            }
         }
     }
 
@@ -367,4 +401,3 @@ class StockViewModelFactory(private val application: Application) : ViewModelPro
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
-
