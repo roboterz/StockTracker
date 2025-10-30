@@ -36,6 +36,8 @@ class AddOrEditTransactionFragment : Fragment() {
         StockViewModelFactory(requireActivity().application)
     }
 
+    private var fetchedExchangeName: String? = null // *** 新增：用于存储获取到的交易所代码 ***
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -113,10 +115,13 @@ class AddOrEditTransactionFragment : Fragment() {
                             if (data != null) {
                                 binding.editTextStockName.setText(data.name)
                                 binding.editTextPrice.setText(data.currentPrice.toString())
+                                fetchedExchangeName = data.exchangeName // *** 存储交易所代码 ***
                             } else {
+                                fetchedExchangeName = null // *** 失败时清除 ***
                                 Toast.makeText(requireContext(), "无法找到股票数据", Toast.LENGTH_SHORT).show()
                             }
                         } catch (e: Exception) {
+                            fetchedExchangeName = null // *** 异常时清除 ***
                             Log.e("AddOrEditTransaction", "Failed to fetch initial stock data for $ticker", e)
                             Toast.makeText(requireContext(), "获取股票数据失败", Toast.LENGTH_SHORT).show()
                         } finally {
@@ -156,7 +161,13 @@ class AddOrEditTransactionFragment : Fragment() {
                 fee = fee
             )
 
-            viewModel.saveOrUpdateTransaction(transaction, stock.id.ifEmpty { null }, newStockId, stockName)
+            viewModel.saveOrUpdateTransaction(
+                transaction,
+                stock.id.ifEmpty { null },
+                newStockId,
+                stockName,
+                fetchedExchangeName // *** 传递交易所代码 ***
+            )
         }
 
         binding.buttonDelete.setOnClickListener {

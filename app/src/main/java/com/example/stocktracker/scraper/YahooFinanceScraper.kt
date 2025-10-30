@@ -10,18 +10,19 @@ object YahooFinanceScraper {
 
     private const val TAG = "YahooFinanceScraper"
 
-    // *** 关键修复：合并数据类以包含股票名称 ***
+    // *** 关键修复：合并数据类以包含股票名称和交易所代码 ***
     data class ScrapedData(
         val name: String,
         val currentPrice: Double,
-        val previousClose: Double
+        val previousClose: Double,
+        val exchangeName: String // *** 新增：交易所代码 (例如 "NMS", "NYQ") ***
     )
     data class DividendInfo(val date: LocalDate, val dividend: Double)
     data class SplitInfo(val date: LocalDate, val numerator: Double, val denominator: Double)
 
     // *** 关键修复：移除不再有效且冗余的 fetchStockName 函数 ***
 
-    // *** 关键修复：更新 fetchStockData 以同时返回名称和价格 ***
+    // *** 关键修复：更新 fetchStockData 以同时返回名称、价格和交易所 ***
     fun fetchStockData(ticker: String): ScrapedData? {
         val url = "https://query1.finance.yahoo.com/v8/finance/chart/$ticker"
         return try {
@@ -37,15 +38,16 @@ object YahooFinanceScraper {
             val result = chart.getJSONArray("result").getJSONObject(0)
             val meta = result.getJSONObject("meta")
 
-            // 从同一响应中解析名称和价格
+            // 从同一响应中解析名称、价格和交易所
             val name = meta.optString("shortName", meta.optString("longName", ticker))
             val currentPrice = meta.getDouble("regularMarketPrice")
             val previousClose = meta.getDouble("previousClose")
+            val exchangeName = meta.optString("exchangeName", "") // *** 新增：获取交易所代码 ***
 
-            Log.d(TAG, "Ticker: $ticker | Fetched Name: $name | Price: $currentPrice | Prev Close: $previousClose")
+            Log.d(TAG, "Ticker: $ticker | Fetched Name: $name | Price: $currentPrice | Prev Close: $previousClose | Exchange: $exchangeName")
 
             if (currentPrice > 0 && previousClose > 0 && name.isNotBlank()) {
-                ScrapedData(name, currentPrice, previousClose)
+                ScrapedData(name, currentPrice, previousClose, exchangeName) // *** 传递交易所代码 ***
             } else {
                 Log.e(TAG, "Parsed invalid values for $ticker. Name: $name, Current: $currentPrice, Previous: $previousClose")
                 null
@@ -133,6 +135,26 @@ object YahooFinanceScraper {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch or parse split data for $ticker", e)
             null
+        }
+    }
+
+    // *** 新增：辅助函数，用于格式化交易所名称 ***
+    fun formatExchangeName(code: String): String {
+        return when (code.uppercase()) {
+            "NMS", "NCM","NASDAQ" -> "NASDAQ" // NMS 是 Nasdaq
+            "NYQ", "NYSE" -> "NYSE" // NYQ 是 NYSE
+            "PCX", "ARCX" -> "NYSE Arca" // ARCX 是 NYSE Arca
+            "OPR" -> "OPRA" // OPRA (Options)
+            "OTC" -> "OTC"
+            "IOB" -> "IOB"
+            "LSE" -> "LSE" // London
+            "TOR" -> "TSX" // Toronto
+            "GER" -> "XETRA" // Germany
+            "FRA" -> "FRA" // Frankfurt
+            "PAR" -> "Euronext" // Paris
+            "HKG" -> "HKG" // Hong Kong
+            "" -> ""
+            else -> code // 如果不认识，则默认返回原始代码
         }
     }
 }
