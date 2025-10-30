@@ -8,7 +8,9 @@
     android:paddingHorizontal="16dp"
     android:paddingTop="45dp">
 
+    <!-- *** 新增ID *** -->
     <TextView
+        android:id="@+id/text_view_asset_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="持有资产"
@@ -20,7 +22,7 @@
         android:id="@+id/toggle_group_asset_type"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginVertical="16dp"
         android:orientation="horizontal">
 
         <Button
@@ -47,11 +49,11 @@
             app:backgroundTint="@color/asset_toggle_bg_color" />
     </LinearLayout>
 
-
+    <!-- *** 新增ID *** -->
     <LinearLayout
+        android:id="@+id/layout_chart_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
@@ -72,17 +74,8 @@
     </LinearLayout>
 
     <!-- Stock list header -->
-    <include
-        layout="@layout/list_item_stock_header"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="0dp" />
 
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:layout_marginTop="5dp"
-        android:background="#22FFFFFF" />
+
+
 
 </LinearLayout>
-

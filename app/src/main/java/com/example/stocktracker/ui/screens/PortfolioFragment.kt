@@ -25,12 +25,14 @@ import com.example.stocktracker.MainActivity
 import com.example.stocktracker.R
 import com.example.stocktracker.databinding.FragmentPortfolioBinding
 import com.example.stocktracker.ui.PortfolioAdapter
+import com.example.stocktracker.ui.viewmodel.StockUiState
 import com.example.stocktracker.ui.viewmodel.StockViewModel
 import com.example.stocktracker.ui.viewmodel.StockViewModelFactory
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
 
 class PortfolioFragment : Fragment() {
 
@@ -45,6 +47,10 @@ class PortfolioFragment : Fragment() {
     private lateinit var exportDbLauncher: ActivityResultLauncher<String>
     private lateinit var importDbLauncher: ActivityResultLauncher<Array<String>>
     // --- SAF 启动器结束 ---
+
+    // *** 新增：跟踪当前选择的资产类型 ***
+    private var selectedAssetType = AssetType.HOLDINGS
+    private var portfolioAdapter: PortfolioAdapter? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,10 +81,25 @@ class PortfolioFragment : Fragment() {
             viewModel.refreshData()
         }
 
-        val portfolioAdapter = PortfolioAdapter { stock ->
-            viewModel.selectStock(stock.id)
-            findNavController().navigate(R.id.action_portfolioFragment_to_stockDetailFragment)
-        }
+        // *** 修改：初始化 Adapter 并传入所有点击回调 ***
+        portfolioAdapter = PortfolioAdapter(
+            onStockClicked = { stock ->
+                viewModel.selectStock(stock.id)
+                findNavController().navigate(R.id.action_portfolioFragment_to_stockDetailFragment)
+            },
+            onHoldingsClicked = {
+                selectedAssetType = AssetType.HOLDINGS
+                updateAdapterList(viewModel.uiState.value) // 使用当前状态立即重建列表
+            },
+            onClosedClicked = {
+                selectedAssetType = AssetType.CLOSED
+                updateAdapterList(viewModel.uiState.value)
+            },
+            onCashClicked = {
+                selectedAssetType = AssetType.CASH
+                updateAdapterList(viewModel.uiState.value)
+            }
+        )
         binding.recyclerViewStocks.adapter = portfolioAdapter
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -89,19 +110,8 @@ class PortfolioFragment : Fragment() {
 
                     binding.swipeRefreshLayout.isRefreshing = uiState.isRefreshing
 
-                    val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
-                    val filteredUiState = uiState.copy(holdings = activeHoldings)
-
-                    val portfolioItems = mutableListOf<PortfolioListItem>()
-                    portfolioItems.add(PortfolioListItem.Header(filteredUiState))
-                    portfolioItems.add(PortfolioListItem.ProfitLossChart())
-                    if (filteredUiState.holdings.isNotEmpty()) {
-                        portfolioItems.add(PortfolioListItem.Chart(filteredUiState.holdings))
-                    }
-                    filteredUiState.holdings.forEach { stock ->
-                        portfolioItems.add(PortfolioListItem.Stock(stock))
-                    }
-                    portfolioAdapter.submitList(portfolioItems)
+                    // *** 修改：调用新的列表构建函数 ***
+                    updateAdapterList(uiState)
                 }
             }
         }
@@ -114,6 +124,49 @@ class PortfolioFragment : Fragment() {
 
         setupToolbarListeners()
     }
+
+    // *** 新增：根据当前选择的
+    private fun updateAdapterList(uiState: StockUiState) {
+        val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
+        // 创建一个仅包含活动持仓的 uiState 子集用于 Header 和 Chart
+        val filteredUiState = uiState.copy(holdings = activeHoldings)
+
+        val portfolioItems = mutableListOf<PortfolioListItem>()
+        // 1. 添加 Header (始终显示活动持仓的统计)
+        portfolioItems.add(PortfolioListItem.Header(filteredUiState))
+        // 2. 添加盈亏图表
+        portfolioItems.add(PortfolioListItem.ProfitLossChart())
+        // 3. 添加资产分布图 (包含当前选中的按钮状态)
+        // *** 修复：即使没有持仓，也要显示 Chart 项以显示按钮 ***
+        portfolioItems.add(PortfolioListItem.Chart(filteredUiState.holdings, selectedAssetType))
+
+
+        // 4. 根据所选选项卡添加相应的列表数据
+        when (selectedAssetType) {
+            AssetType.HOLDINGS -> {
+                portfolioItems.add(PortfolioListItem.StockHeader)
+                activeHoldings.sortedByDescending { it.marketValue }.forEach { stock ->
+                    portfolioItems.add(PortfolioListItem.Stock(stock))
+                }
+            }
+            AssetType.CLOSED -> {
+                portfolioItems.add(PortfolioListItem.ClosedPositionHeader)
+                uiState.closedPositions.forEach { stock ->
+                    portfolioItems.add(PortfolioListItem.ClosedPosition(stock))
+                }
+            }
+            AssetType.CASH -> {
+                portfolioItems.add(PortfolioListItem.CashHeader)
+                uiState.cashTransactions.forEach { transaction ->
+                    portfolioItems.add(PortfolioListItem.Cash(transaction))
+                }
+            }
+        }
+
+        // 5. 提交列表到 Adapter
+        portfolioAdapter?.submitList(portfolioItems)
+    }
+
 
     // --- SAF 启动器初始化 ---
     private fun setupDbLaunchers() {
@@ -216,6 +269,9 @@ class PortfolioFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+        binding.recyclerViewStocks.adapter = null // *** 新增：清理 adapter 引用 ***
+        portfolioAdapter = null // *** 新增：清理 adapter 引用 ***
         _binding = null
     }
 }
+

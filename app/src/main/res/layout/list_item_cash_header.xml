@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
@@ -12,45 +13,33 @@
         android:paddingTop="5dp"
         android:paddingBottom="4dp">
 
-        <!-- Column 1: Name & Ticker -->
+        <!-- Column 1: 类型 -->
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="类型"
+            android:textColor="#CCAAAAAA"
+            android:textSize="12sp" />
+
+        <!-- Column 2: 日期 -->
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1.5"
-            android:text="名称代码"
+            android:text="日期"
             android:textColor="#CCAAAAAA"
             android:textSize="12sp" />
 
-        <!-- Column 2: Market Value & Total Cost -->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.5"
-            android:gravity="end"
-            android:text="市值/总成本"
-            android:textColor="#CCAAAAAA"
-            android:textSize="12sp" />
-
-        <!-- Column 3: Daily P/L -->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.5"
-            android:gravity="end"
-            android:text="当日盈亏"
-            android:textColor="#CCAAAAAA"
-            android:textSize="12sp" />
-
-        <!-- Column 4: Total P/L -->
+        <!-- Column 3: 金额 -->
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1.5"
             android:gravity="end"
-            android:text="总盈亏"
+            android:text="金额"
             android:textColor="#CCAAAAAA"
             android:textSize="12sp" />
-
 
     </LinearLayout>
 

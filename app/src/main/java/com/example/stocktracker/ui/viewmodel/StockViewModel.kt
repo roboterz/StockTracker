@@ -39,7 +39,9 @@ data class StockUiState(
     val transactionToEditId: String? = null,
     val cashBalance: Double = 0.0,
     val isRefreshing: Boolean = false,
-    val portfolioName: String = "我的投资组合" // *** 新增：投资组合名称 ***
+    val portfolioName: String = "我的投资组合", // *** 新增：投资组合名称 ***
+    val cashTransactions: List<CashTransaction> = emptyList(), // *** 新增：现金交易列表 ***
+    val closedPositions: List<StockHolding> = emptyList() // *** 新增：平仓列表 ***
 ) {
     val selectedStock: StockHolding
         get() = holdings.find { it.id == selectedStockId } ?: StockHolding.empty
@@ -81,7 +83,16 @@ class StockViewModel(application: Application) : ViewModel() {
                     if (it.type == CashTransactionType.DEPOSIT) it.amount else -it.amount
                 }
 
-                val finalHoldings = holdingsFromDb.map { dbHolding ->
+                // *** 1. 拆分活动持仓和已平仓位 ***
+                //    活动持仓：当前数量 > 0
+                //    已平仓位：当前数量 <= 0 并且 曾经有过交易 (总盈亏 != 0 或 总卖出 != 0)
+                val activeHoldingsFromDb = holdingsFromDb.filter { it.totalQuantity > 0 }
+                val closedPositionsFromDb = holdingsFromDb.filter {
+                    it.totalQuantity <= 0 && (it.totalPL != 0.0 || it.totalSoldValue != 0.0)
+                }.sortedByDescending { it.transactions.maxOfOrNull { t -> t.date } } // 按最后交易日期排序
+
+                // *** 2. 只为活动持仓计算每日盈亏 ***
+                val finalActiveHoldings = activeHoldingsFromDb.map { dbHolding ->
                     priceDataMap[dbHolding.id]?.let { prices ->
                         val today = LocalDate.now()
 
@@ -145,9 +156,17 @@ class StockViewModel(application: Application) : ViewModel() {
                     } ?: dbHolding
                 }
 
-                _uiState.update { it.copy(holdings = finalHoldings, cashBalance = cashBalance, portfolioName = portfolioName) } // *** 更新 portfolioName ***
+                _uiState.update {
+                    it.copy(
+                        holdings = finalActiveHoldings,
+                        cashBalance = cashBalance,
+                        portfolioName = portfolioName, // *** 更新 portfolioName ***
+                        cashTransactions = cashTransactions.sortedByDescending { t -> t.date }, // *** 更新现金交易 ***
+                        closedPositions = closedPositionsFromDb // *** 更新平仓列表 ***
+                    )
+                }
 
-                if (isInitialLoad && finalHoldings.isNotEmpty()) {
+                if (isInitialLoad && finalActiveHoldings.isNotEmpty()) {
                     isInitialLoad = false
                     refreshData()
                 }
@@ -167,8 +186,8 @@ class StockViewModel(application: Application) : ViewModel() {
 
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true) }
-            val holdingsToRefresh = _uiState.value.holdings.filter { it.totalQuantity > 0 }
-
+            // *** 修正：现在刷新所有活动持仓 ***
+            val holdingsToRefresh = _uiState.value.holdings
             try {
                 if (holdingsToRefresh.isEmpty()) {
                     _uiState.update { it.copy(isRefreshing = false) }
@@ -537,3 +556,4 @@ class StockViewModelFactory(private val application: Application) : ViewModelPro
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+

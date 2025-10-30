@@ -13,11 +13,14 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.stocktracker.R
+import com.example.stocktracker.data.CashTransaction
+import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.databinding.*
 import com.example.stocktracker.ui.components.ChartSegment
 import com.example.stocktracker.ui.components.LineData
 import com.example.stocktracker.ui.components.formatCurrency
+import com.example.stocktracker.ui.screens.AssetType
 import com.example.stocktracker.ui.screens.PortfolioListItem
 import com.example.stocktracker.ui.viewmodel.StockUiState
 import java.text.DecimalFormat
@@ -29,11 +32,20 @@ import kotlin.math.absoluteValue
 private const val ITEM_VIEW_TYPE_HEADER = 0
 private const val ITEM_VIEW_TYPE_PROFIT_LOSS_CHART = 1
 private const val ITEM_VIEW_TYPE_CHART = 2
-private const val ITEM_VIEW_TYPE_STOCK = 3
+// *** 修改：重新定义视图类型 ***
+private const val ITEM_VIEW_TYPE_STOCK_HEADER = 3
+private const val ITEM_VIEW_TYPE_STOCK = 4
+private const val ITEM_VIEW_TYPE_CLOSED_HEADER = 5
+private const val ITEM_VIEW_TYPE_CLOSED_POSITION = 6
+private const val ITEM_VIEW_TYPE_CASH_HEADER = 7
+private const val ITEM_VIEW_TYPE_CASH_TRANSACTION = 8
 
 
 class PortfolioAdapter(
-    private val onStockClicked: (StockHolding) -> Unit
+    private val onStockClicked: (StockHolding) -> Unit,
+    private val onHoldingsClicked: () -> Unit,
+    private val onClosedClicked: () -> Unit,
+    private val onCashClicked: () -> Unit
 ) : ListAdapter<PortfolioListItem, RecyclerView.ViewHolder>(PortfolioDiffCallback()) {
 
     override fun getItemViewType(position: Int): Int {
@@ -41,7 +53,13 @@ class PortfolioAdapter(
             is PortfolioListItem.Header -> ITEM_VIEW_TYPE_HEADER
             is PortfolioListItem.ProfitLossChart -> ITEM_VIEW_TYPE_PROFIT_LOSS_CHART
             is PortfolioListItem.Chart -> ITEM_VIEW_TYPE_CHART
+            // *** 新增类型 ***
+            is PortfolioListItem.StockHeader -> ITEM_VIEW_TYPE_STOCK_HEADER
             is PortfolioListItem.Stock -> ITEM_VIEW_TYPE_STOCK
+            is PortfolioListItem.ClosedPositionHeader -> ITEM_VIEW_TYPE_CLOSED_HEADER
+            is PortfolioListItem.ClosedPosition -> ITEM_VIEW_TYPE_CLOSED_POSITION
+            is PortfolioListItem.CashHeader -> ITEM_VIEW_TYPE_CASH_HEADER
+            is PortfolioListItem.Cash -> ITEM_VIEW_TYPE_CASH_TRANSACTION
         }
     }
 
@@ -49,8 +67,14 @@ class PortfolioAdapter(
         return when (viewType) {
             ITEM_VIEW_TYPE_HEADER -> HeaderViewHolder.from(parent)
             ITEM_VIEW_TYPE_PROFIT_LOSS_CHART -> ProfitLossChartViewHolder.from(parent)
-            ITEM_VIEW_TYPE_CHART -> ChartViewHolder.from(parent)
+            ITEM_VIEW_TYPE_CHART -> ChartViewHolder.from(parent, onHoldingsClicked, onClosedClicked, onCashClicked)
+            // *** 新增 ViewHolder 创建 ***
+            ITEM_VIEW_TYPE_STOCK_HEADER -> StockHeaderViewHolder.from(parent)
             ITEM_VIEW_TYPE_STOCK -> StockViewHolder.from(parent)
+            ITEM_VIEW_TYPE_CLOSED_HEADER -> ClosedPositionHeaderViewHolder.from(parent)
+            ITEM_VIEW_TYPE_CLOSED_POSITION -> ClosedPositionViewHolder.from(parent)
+            ITEM_VIEW_TYPE_CASH_HEADER -> CashHeaderViewHolder.from(parent)
+            ITEM_VIEW_TYPE_CASH_TRANSACTION -> CashTransactionViewHolder.from(parent)
             else -> throw ClassCastException("Unknown viewType $viewType")
         }
     }
@@ -66,11 +90,23 @@ class PortfolioAdapter(
             }
             is ChartViewHolder -> {
                 val chartItem = getItem(position) as PortfolioListItem.Chart
-                holder.bind(chartItem.holdings)
+                holder.bind(chartItem.holdings, chartItem.selectedType)
             }
             is StockViewHolder -> {
                 val stockItem = getItem(position) as PortfolioListItem.Stock
                 holder.bind(stockItem.stock, onStockClicked)
+            }
+            // *** 新增 ViewHolder 绑定 ***
+            is StockHeaderViewHolder -> holder.bind()
+            is ClosedPositionHeaderViewHolder -> holder.bind()
+            is ClosedPositionViewHolder -> {
+                val closedItem = getItem(position) as PortfolioListItem.ClosedPosition
+                holder.bind(closedItem.stock)
+            }
+            is CashHeaderViewHolder -> holder.bind()
+            is CashTransactionViewHolder -> {
+                val cashItem = getItem(position) as PortfolioListItem.Cash
+                holder.bind(cashItem.transaction)
             }
         }
     }
@@ -282,7 +318,12 @@ class PortfolioAdapter(
         }
     }
 
-    class ChartViewHolder(private val binding: ListItemPortfolioChartBinding) : RecyclerView.ViewHolder(binding.root) {
+    class ChartViewHolder(
+        private val binding: ListItemPortfolioChartBinding,
+        private val onHoldingsClicked: () -> Unit,
+        private val onClosedClicked: () -> Unit,
+        private val onCashClicked: () -> Unit
+    ) : RecyclerView.ViewHolder(binding.root) {
         private val context = itemView.context
         private val chartColors by lazy {
             listOf(
@@ -298,16 +339,32 @@ class PortfolioAdapter(
             assetButtons = listOf(binding.buttonHoldingsDetail, binding.buttonClosedPositionsDetail, binding.buttonCashDetail)
         }
 
-        fun bind(holdings: List<StockHolding>) {
+        fun bind(holdings: List<StockHolding>, selectedType: AssetType) {
             if (!listenersAreSet) {
-                assetButtons.forEach { button ->
-                    button.setOnClickListener {
-                        handleAssetButtonClick(it as Button)
-                    }
-                }
-                handleAssetButtonClick(binding.buttonHoldingsDetail)
+                // *** 设置监听器以调用 Fragment 中的回调 ***
+                binding.buttonHoldingsDetail.setOnClickListener { onHoldingsClicked() }
+                binding.buttonClosedPositionsDetail.setOnClickListener { onClosedClicked() }
+                binding.buttonCashDetail.setOnClickListener { onCashClicked() }
                 listenersAreSet = true
             }
+
+            when (selectedType){
+                AssetType.HOLDINGS -> {
+                    binding.layoutChartContainer.visibility = View.VISIBLE
+                }
+                AssetType.CLOSED -> {
+                    binding.layoutChartContainer.visibility = View.GONE
+                }
+                AssetType.CASH -> {
+                    binding.layoutChartContainer.visibility = View.GONE
+                }
+
+            }
+
+            // *** 根据传入的状态更新按钮的选中样式 ***
+            binding.buttonHoldingsDetail.isSelected = selectedType == AssetType.HOLDINGS
+            binding.buttonClosedPositionsDetail.isSelected = selectedType == AssetType.CLOSED
+            binding.buttonCashDetail.isSelected = selectedType == AssetType.CASH
 
             val totalMarketValue = holdings.sumOf { it.marketValue }
             if (totalMarketValue <= 0) {
@@ -338,11 +395,6 @@ class PortfolioAdapter(
             updateLegend(holdingsForChart, totalMarketValue)
         }
 
-        private fun handleAssetButtonClick(clickedButton: Button) {
-            assetButtons.forEach { it.isSelected = false }
-            clickedButton.isSelected = true
-        }
-
         private fun updateLegend(holdingsData: List<Pair<String, Double>>, totalMarketValue: Double) {
             binding.legendLayout.removeAllViews()
             holdingsData.forEachIndexed { index, data ->
@@ -367,10 +419,28 @@ class PortfolioAdapter(
         }
 
         companion object {
-            fun from(parent: ViewGroup): ChartViewHolder {
+            fun from(
+                parent: ViewGroup,
+                onHoldingsClicked: () -> Unit,
+                onClosedClicked: () -> Unit,
+                onCashClicked: () -> Unit
+            ): ChartViewHolder {
                 val layoutInflater = LayoutInflater.from(parent.context)
                 val binding = ListItemPortfolioChartBinding.inflate(layoutInflater, parent, false)
-                return ChartViewHolder(binding)
+                return ChartViewHolder(binding, onHoldingsClicked, onClosedClicked, onCashClicked)
+            }
+        }
+    }
+
+    // --- Stock (Active Holding) ViewHolder ---
+    class StockHeaderViewHolder(binding: ListItemStockHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind() { /* 静态布局, 无需绑定 */ }
+
+        companion object {
+            fun from(parent: ViewGroup): StockHeaderViewHolder {
+                val layoutInflater = LayoutInflater.from(parent.context)
+                val binding = ListItemStockHeaderBinding.inflate(layoutInflater, parent, false)
+                return StockHeaderViewHolder(binding)
             }
         }
     }
@@ -411,6 +481,93 @@ class PortfolioAdapter(
             }
         }
     }
+
+    // --- 新增：Closed Position ViewHolders ---
+    class ClosedPositionHeaderViewHolder(binding: ListItemClosedPositionHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind() { /* 静态布局, 无需绑定 */ }
+
+        companion object {
+            fun from(parent: ViewGroup): ClosedPositionHeaderViewHolder {
+                val layoutInflater = LayoutInflater.from(parent.context)
+                val binding = ListItemClosedPositionHeaderBinding.inflate(layoutInflater, parent, false)
+                return ClosedPositionHeaderViewHolder(binding)
+            }
+        }
+    }
+
+    class ClosedPositionViewHolder(private val binding: ListItemClosedPositionBinding) : RecyclerView.ViewHolder(binding.root) {
+        @SuppressLint("SetTextI18n")
+        fun bind(stock: StockHolding) {
+            binding.textViewName.text = stock.name
+            binding.textViewTicker.text = stock.ticker
+            binding.textViewTotalCost.text = formatCurrency(stock.totalCostOfAllBuys, false)
+
+            binding.textViewTotalPlValue.text = formatCurrency(stock.totalPL, true)
+            binding.textViewTotalPlPercent.text = "${formatCurrency(stock.totalPLPercent, true)}%"
+            updatePlColor(binding.textViewTotalPlValue, binding.textViewTotalPlPercent, stock.totalPL)
+        }
+
+        private fun updatePlColor(valueView: TextView, percentView: TextView, value: Double) {
+            val color = if (value >= 0) {
+                ContextCompat.getColor(itemView.context, R.color.positive_green)
+            } else {
+                ContextCompat.getColor(itemView.context, R.color.negative_red)
+            }
+            valueView.setTextColor(color)
+            percentView.setTextColor(color)
+        }
+
+        companion object {
+            fun from(parent: ViewGroup): ClosedPositionViewHolder {
+                val layoutInflater = LayoutInflater.from(parent.context)
+                val binding = ListItemClosedPositionBinding.inflate(layoutInflater, parent, false)
+                return ClosedPositionViewHolder(binding)
+            }
+        }
+    }
+
+    // --- 新增：Cash Transaction ViewHolders ---
+    class CashHeaderViewHolder(binding: ListItemCashHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind() { /* 静态布局, 无需绑定 */ }
+
+        companion object {
+            fun from(parent: ViewGroup): CashHeaderViewHolder {
+                val layoutInflater = LayoutInflater.from(parent.context)
+                val binding = ListItemCashHeaderBinding.inflate(layoutInflater, parent, false)
+                return CashHeaderViewHolder(binding)
+            }
+        }
+    }
+
+    class CashTransactionViewHolder(private val binding: ListItemCashTransactionBinding) : RecyclerView.ViewHolder(binding.root) {
+        private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
+
+        @SuppressLint("SetTextI18n")
+        fun bind(transaction: com.example.stocktracker.data.CashTransaction) {
+            binding.textViewDate.text = transaction.date.format(dateFormatter)
+            val isDeposit = transaction.type == com.example.stocktracker.data.CashTransactionType.DEPOSIT
+
+            if (isDeposit) {
+                binding.textViewType.text = "存入"
+                binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+                binding.textViewAmount.text = formatCurrency(transaction.amount, true)
+                binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+            } else {
+                binding.textViewType.text = "取出"
+                binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+                binding.textViewAmount.text = formatCurrency(-transaction.amount, true)
+                binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+            }
+        }
+
+        companion object {
+            fun from(parent: ViewGroup): CashTransactionViewHolder {
+                val layoutInflater = LayoutInflater.from(parent.context)
+                val binding = ListItemCashTransactionBinding.inflate(layoutInflater, parent, false)
+                return CashTransactionViewHolder(binding)
+            }
+        }
+    }
 }
 
 // --- DiffUtil Callback ---
@@ -424,3 +581,4 @@ class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioListItem>() {
         return oldItem == newItem
     }
 }
+

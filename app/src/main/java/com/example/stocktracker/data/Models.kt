@@ -60,6 +60,9 @@ data class StockHolding(
 
     val totalSoldValue: Double get() = fifoCalculations.totalSoldValue
 
+    // *** 新增：暴露所有买入的总成本 ***
+    val totalCostOfAllBuys: Double get() = fifoCalculations.totalCostOfAllBuys
+
     // holdingPL：基于实际持仓成本计算（无利润抵消）
     val holdingPL: Double get() = if (totalQuantity > 0) marketValue - totalCost else 0.0
 
@@ -199,5 +202,4 @@ data class StockHolding(
         val empty = StockHolding("", "", "", 0.0, emptyList())
     }
 }
-
 
