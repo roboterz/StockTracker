@@ -1,6 +1,7 @@
 package com.example.stocktracker.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -27,7 +28,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import kotlin.math.absoluteValue
 
-// ... (NavigationEvent remains the same) ...
+// ... (NavigationEvent, StockUiState remain the same) ...
 sealed class NavigationEvent {
     object NavigateBack : NavigationEvent()
 }
@@ -49,13 +50,13 @@ data class StockUiState(
 
 
 class StockViewModel(application: Application) : ViewModel() {
+    private val appContext = application.applicationContext // *** 新增：获取应用上下文 ***
     private val db = StockDatabase.getDatabase(application)
     private val stockDao = db.stockDao()
     private val cashDao = db.cashDao()
     private val stockNameDao = db.stockNameDao()
     private val portfolioSettingsDao = db.portfolioSettingsDao() // *** 新增 DAO 引用 ***
 
-    // ... (StateFlows, SharedFlows, isInitialLoad, init block remain mostly the same) ...
     private val _uiState = MutableStateFlow(StockUiState())
     val uiState: StateFlow<StockUiState> = _uiState.asStateFlow()
 
@@ -64,6 +65,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     private val _toastEvents = MutableSharedFlow<String>()
     val toastEvents = _toastEvents.asSharedFlow()
+
 
     private val _priceDataFlow = MutableStateFlow<Map<String, YahooFinanceScraper.ScrapedData>>(emptyMap())
     private var isInitialLoad = true
@@ -471,6 +473,58 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
+    // --- 新增：数据库导出/导入功能 ---
+
+    /**
+     * 将数据库导出到用户指定的 Uri (SAF)。
+     */
+    fun exportDatabase(targetUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // *** 关键修复：在导出之前强制执行 WAL 检查点，确保数据完整性 ***
+                StockDatabase.runCheckpoint(appContext)
+
+                val filesCopied = StockDatabase.exportDatabase(appContext, targetUri)
+                if (filesCopied > 0) {
+                    _toastEvents.emit("数据库备份成功！文件已保存。")
+                } else {
+                    _toastEvents.emit("备份失败：未找到主数据库文件。")
+                }
+            } catch (e: Exception) {
+                Log.e("StockViewModel", "Database export failed", e)
+                _toastEvents.emit("备份失败：${e.localizedMessage}")
+            }
+        }
+    }
+
+    /**
+     * 从用户指定的 Uri (SAF) 导入数据库。
+     * 导入后会强制刷新所有数据。
+     */
+    fun importDatabase(sourceUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _uiState.update { it.copy(isRefreshing = true) } // 导入过程中显示加载状态
+                val filesCopied = StockDatabase.importDatabase(appContext, sourceUri)
+
+                if (filesCopied > 0) {
+                    // 重新加载所有数据：清空价格数据缓存并等待 Flow 重新触发
+                    _priceDataFlow.update { emptyMap() }
+                    _toastEvents.emit("数据库恢复成功！正在重新加载数据...")
+                    // 强制刷新所有价格，确保 UI 数据一致性
+                    refreshData()
+                } else {
+                    _toastEvents.emit("恢复失败：未找到备份文件或文件内容为空。")
+                }
+            } catch (e: Exception) {
+                Log.e("StockViewModel", "Database import failed", e)
+                _toastEvents.emit("恢复失败：${e.localizedMessage}")
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) }
+            }
+        }
+    }
+    // --- 新增结束 ---
 }
 
 // ... (StockViewModelFactory remains the same) ...
@@ -483,4 +537,3 @@ class StockViewModelFactory(private val application: Application) : ViewModelPro
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
-

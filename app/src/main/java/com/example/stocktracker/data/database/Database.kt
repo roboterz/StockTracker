@@ -1,9 +1,10 @@
 package com.example.stocktracker.data.database
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import androidx.room.*
-import androidx.sqlite.db.SupportSQLiteDatabase // Import SupportSQLiteDatabase
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.SampleData
 import com.example.stocktracker.data.TransactionType
@@ -11,15 +12,16 @@ import com.example.stocktracker.data.toEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.runBlocking
-import org.json.JSONObject // Import JSONObject
-import java.io.BufferedReader // Import BufferedReader
-import java.io.InputStreamReader // Import InputStreamReader
+import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.File
+import java.io.InputStreamReader
 import java.time.LocalDate
 import java.util.concurrent.Executors
 
 // --- 数据库层 (Room Database Layer) ---
 
-// ... (StockHoldingEntity, TransactionEntity, CashTransactionEntity remain the same) ...
+// ... (StockHoldingEntity, TransactionEntity, CashTransactionEntity, PortfolioSettingsEntity, StockWithTransactions, Converters, StockDao, CashDao, PortfolioSettingsDao definitions remain the same) ...
 @Entity(tableName = "stocks")
 data class StockHoldingEntity(
     @PrimaryKey val id: String,
@@ -133,7 +135,6 @@ interface StockDao {
     @Query("SELECT * FROM transactions WHERE stockId = :stockId")
     suspend fun getTransactionsByStockId(stockId: String): List<TransactionEntity>
 
-    // *** 新增：根据股票ID删除股票实体 ***
     @Query("DELETE FROM stocks WHERE id = :stockId")
     suspend fun deleteStockById(stockId: String)
 
@@ -182,16 +183,18 @@ abstract class StockDatabase : RoomDatabase() {
     abstract fun portfolioSettingsDao(): PortfolioSettingsDao // *** 新增 PortfolioSettingsDao ***
 
     companion object {
+        private const val DATABASE_NAME = "stock_database" // 数据库文件名
+        private const val TAG = "StockDatabase"
+
         @Volatile
         private var INSTANCE: StockDatabase? = null
 
-        // *** 修改 getDatabase 以包含新的 DAO 和预填充逻辑 ***
         fun getDatabase(context: Context): StockDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     StockDatabase::class.java,
-                    "stock_database"
+                    DATABASE_NAME
                 )
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
@@ -261,15 +264,114 @@ abstract class StockDatabase : RoomDatabase() {
                         if (stockNamesList.isNotEmpty()) {
                             runBlocking {
                                 database.stockNameDao().insertAll(stockNamesList)
-                                Log.d("StockDatabase", "Successfully pre-populated ${stockNamesList.size} stock names.")
+                                Log.d(TAG, "Successfully pre-populated ${stockNamesList.size} stock names.")
                             }
                         }
                     }
                 }
             } catch (e: Exception) {
-                Log.e("StockDatabase", "Error pre-populating stock names from JSON", e)
+                Log.e(TAG, "Error pre-populating stock names from JSON", e)
                 // 处理错误，例如显示 Toast 或记录日志
             }
+        }
+
+        // *** 新增：WAL 检查点方法 ***
+        /**
+         * 强制执行 WAL 检查点，将所有 WAL 事务写入主数据库文件。
+         * 这对于确保数据库文件在导出时的完整性至关重要。
+         */
+        fun runCheckpoint(context: Context) {
+            try {
+                // 确保数据库实例已创建
+                val dbInstance = getDatabase(context)
+                // 强制执行 FULL 检查点
+                dbInstance.openHelper.writableDatabase.use { db ->
+                    db.execSQL("PRAGMA wal_checkpoint(FULL)")
+                    Log.d(TAG, "WAL Checkpoint (FULL) executed successfully.")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error executing WAL Checkpoint: ${e.message}", e)
+            }
+        }
+        // *** 新增结束 ***
+
+        // --- 数据库导出/导入逻辑 (使用 SAF) ---
+
+        /**
+         * 导出主数据库文件到指定的 Uri (SAF)。
+         * @return 成功复制的文件数量 (应为 1)
+         */
+        fun exportDatabase(context: Context, targetUri: Uri): Int {
+            var filesCopied = 0
+            val dbFolder = File(context.applicationInfo.dataDir + "/databases")
+            val dbFile = File(dbFolder, DATABASE_NAME)
+
+            if (dbFile.exists()) {
+                try {
+                    // 复制主文件
+                    context.contentResolver.openOutputStream(targetUri)?.use { outputStream ->
+                        dbFile.inputStream().use { inputStream ->
+                            inputStream.copyTo(outputStream)
+                            filesCopied++
+                            Log.d(TAG, "Database main file copied to $targetUri")
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error exporting database file: ${e.message}", e)
+                }
+            }
+            return filesCopied
+        }
+
+        /**
+         * 从指定的 Uri (SAF) 导入数据库文件。
+         * 警告：Room 数据库在导入时必须是**关闭状态**。
+         * @return 成功复制的文件数量 (应为 1)
+         */
+        fun importDatabase(context: Context, sourceUri: Uri): Int {
+            var filesCopied = 0
+            val dbFolder = File(context.applicationInfo.dataDir + "/databases")
+            val dbFile = File(dbFolder, DATABASE_NAME)
+
+            if (!dbFolder.exists()) dbFolder.mkdirs()
+
+            try {
+                // 1. 关闭现有数据库连接
+                // 注意：在 Room 2.1+，此操作可能更复杂。这里采用最直接的方式。
+                INSTANCE?.close()
+                INSTANCE = null
+                Log.d(TAG, "Closed existing database connection.")
+
+                // 2. 删除现有的数据库文件和附属文件
+                val filesToDelete = listOf(
+                    dbFile,
+                    File(dbFolder, "$DATABASE_NAME-wal"),
+                    File(dbFolder, "$DATABASE_NAME-shm"),
+                    File(dbFolder, "$DATABASE_NAME-journal")
+                )
+                filesToDelete.forEach {
+                    if (it.exists()) it.delete()
+                }
+                Log.d(TAG, "Deleted old database files.")
+
+                // 3. 复制主文件
+                context.contentResolver.openInputStream(sourceUri)?.use { inputStream ->
+                    dbFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                        filesCopied++
+                        Log.d(TAG, "Database main file imported from $sourceUri")
+                    }
+                }
+
+                // 4. 重新初始化数据库连接（下次调用 getDatabase 时）
+                getDatabase(context)
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Error importing database: ${e.message}", e)
+                // 导入失败后，重新打开数据库，防止应用崩溃
+                getDatabase(context)
+            }
+            return filesCopied
         }
     }
 }
