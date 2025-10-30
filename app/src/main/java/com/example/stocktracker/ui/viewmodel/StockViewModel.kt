@@ -207,7 +207,7 @@ class StockViewModel(application: Application) : ViewModel() {
                             val sharesOnDate = data.holding.getQuantityOnDate(dividendInfo.date)
                             if (sharesOnDate > 0) {
                                 val dividendTransaction = Transaction(date = dividendInfo.date, type = TransactionType.DIVIDEND, quantity = sharesOnDate, price = dividendInfo.dividend)
-                                dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(dividendTransaction, data.holding.id, "", data.holding.name) })
+                                dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(dividendTransaction, data.holding.id, "", data.holding.name, data.priceData?.exchangeName) })
                             }
                         }
                     }
@@ -221,7 +221,7 @@ class StockViewModel(application: Application) : ViewModel() {
                                 quantity = splitInfo.numerator,
                                 price = splitInfo.denominator
                             )
-                            dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(splitTransaction, data.holding.id, "", data.holding.name) })
+                            dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(splitTransaction, data.holding.id, "", data.holding.name, data.priceData?.exchangeName) })
                         }
                     }
                 }
@@ -231,8 +231,16 @@ class StockViewModel(application: Application) : ViewModel() {
                 results.forEach { data ->
                     data.priceData?.let {
                         successfulFetches++
-                        // 更新股票时也更新名称
-                        stockDao.updateStock(data.holding.toEntity().copy(currentPrice = it.currentPrice, name = data.holding.name))
+                        // *** 关键修复：格式化交易所名称并创建显示代码 ***
+                        val formattedExchange = YahooFinanceScraper.formatExchangeName(it.exchangeName)
+                        val displayTicker = "$formattedExchange:${data.holding.id}"
+
+                        // 更新股票时也更新名称和 ticker
+                        stockDao.updateStock(data.holding.toEntity().copy(
+                            currentPrice = it.currentPrice,
+                            name = data.holding.name,
+                            ticker = displayTicker // *** 存储格式化后的 Ticker ***
+                        ))
                         newPriceData[data.holding.id] = it
                     }
                 }
@@ -320,11 +328,12 @@ class StockViewModel(application: Application) : ViewModel() {
         transaction: Transaction,
         stockId: String?, // Ticker of existing stock being edited, or null if adding new
         newStockIdentifier: String, // Ticker entered by user if adding new
-        stockName: String // Name (either from DB/fetch or entered by user)
+        stockName: String, // Name (either from DB/fetch or entered by user)
+        exchangeName: String? // *** 新增：交易所代码 ***
     ) {
         viewModelScope.launch {
             // 确保传递的 stockName 是最终确定的名称
-            saveOrUpdateTransactionInternal(transaction, stockId, newStockIdentifier, stockName)
+            saveOrUpdateTransactionInternal(transaction, stockId, newStockIdentifier, stockName, exchangeName) // *** 传递交易所代码 ***
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }
@@ -333,7 +342,8 @@ class StockViewModel(application: Application) : ViewModel() {
         transaction: Transaction,
         stockId: String?,
         newStockIdentifier: String,
-        stockName: String // 接收最终确定的名称
+        stockName: String, // 接收最终确定的名称
+        exchangeName: String? // *** 新增：交易所代码 ***
     ) {
         val idToProcess = (stockId ?: newStockIdentifier).uppercase()
         if (idToProcess.isBlank()) return
@@ -351,9 +361,14 @@ class StockViewModel(application: Application) : ViewModel() {
             stockDao.updateStock(existingStock.copy(name = stockName))
             stockDao.insertTransaction(transaction.toEntity(idToProcess))
         } else {
-            // 创建新股票时使用传入的 stockName
+            // *** 关键修复：格式化交易所名称并创建显示代码 ***
+            val formattedExchange = YahooFinanceScraper.formatExchangeName(exchangeName ?: "")
+            val displayTicker = if (formattedExchange.isNotBlank()) "$formattedExchange:$idToProcess" else idToProcess
+
+            // 创建新股票时使用传入的 stockName 和 displayTicker
             val newStock = StockHolding(
-                id = idToProcess, name = stockName, ticker = idToProcess, // Use idToProcess also for ticker initially
+                id = idToProcess, name = stockName,
+                ticker = displayTicker, // *** 使用格式化后的代码 ***
                 currentPrice = transaction.price, transactions = emptyList() // Initial price guess
             )
             stockDao.insertStock(newStock.toEntity())
@@ -468,3 +483,4 @@ class StockViewModelFactory(private val application: Application) : ViewModelPro
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
+
