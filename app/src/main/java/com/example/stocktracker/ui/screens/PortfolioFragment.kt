@@ -4,7 +4,9 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -62,6 +64,9 @@ class PortfolioFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { uiState ->
+                    // *** 更新 Toolbar 标题 ***
+                    binding.toolbar.title = uiState.portfolioName
+
                     binding.swipeRefreshLayout.isRefreshing = uiState.isRefreshing
 
                     val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
@@ -87,6 +92,16 @@ class PortfolioFragment : Fragment() {
             }
         }
 
+        setupToolbarListeners()
+    }
+
+    private fun setupToolbarListeners() {
+        // *** 实现点击 Toolbar 标题编辑名称的逻辑 ***
+        binding.toolbar.setOnClickListener {
+            // 使用自定义对话框（由于不能使用 alert/confirm，这里使用 AlertDialog 模拟）
+            showEditPortfolioNameDialog(viewModel.uiState.value.portfolioName)
+        }
+
         binding.toolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.action_add -> {
@@ -103,9 +118,42 @@ class PortfolioFragment : Fragment() {
         }
     }
 
+    private fun showEditPortfolioNameDialog(currentName: String) {
+        val editText = EditText(requireContext()).apply {
+            setText(currentName)
+            hint = "输入投资组合名称"
+            setTextColor(requireContext().getColor(android.R.color.white)) // 设置文字颜色
+            setBackgroundResource(android.R.color.transparent) // 移除背景，让它融入对话框
+        }
+
+        val padding = resources.getDimensionPixelSize(R.dimen.edit_text_padding)
+        val container = android.widget.FrameLayout(requireContext()).apply {
+            setPadding(padding, padding / 2, padding, padding / 2)
+            addView(editText)
+        }
+
+
+        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            .setTitle("编辑投资组合名称")
+            .setView(container)
+            .setPositiveButton("保存") { dialog, _ ->
+                val newName = editText.text.toString().trim()
+                if (newName.isNotBlank()) {
+                    viewModel.savePortfolioName(newName)
+                } else {
+                    Toast.makeText(requireContext(), "名称不能为空", Toast.LENGTH_SHORT).show()
+                }
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消") { dialog, _ ->
+                dialog.cancel()
+            }
+            .show()
+    }
+
+
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
 }
-

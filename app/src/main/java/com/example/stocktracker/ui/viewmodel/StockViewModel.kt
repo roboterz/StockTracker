@@ -10,6 +10,7 @@ import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.data.Transaction
 import com.example.stocktracker.data.TransactionType
+import com.example.stocktracker.data.database.PortfolioSettingsEntity
 import com.example.stocktracker.data.database.StockDatabase
 import com.example.stocktracker.data.database.StockNameEntity
 import com.example.stocktracker.data.toEntity
@@ -24,8 +25,9 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import kotlin.math.absoluteValue
 
-// ... (NavigationEvent, StockUiState remain the same) ...
+// ... (NavigationEvent remains the same) ...
 sealed class NavigationEvent {
     object NavigateBack : NavigationEvent()
 }
@@ -35,7 +37,8 @@ data class StockUiState(
     val selectedStockId: String? = null,
     val transactionToEditId: String? = null,
     val cashBalance: Double = 0.0,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val portfolioName: String = "我的投资组合" // *** 新增：投资组合名称 ***
 ) {
     val selectedStock: StockHolding
         get() = holdings.find { it.id == selectedStockId } ?: StockHolding.empty
@@ -50,6 +53,7 @@ class StockViewModel(application: Application) : ViewModel() {
     private val stockDao = db.stockDao()
     private val cashDao = db.cashDao()
     private val stockNameDao = db.stockNameDao()
+    private val portfolioSettingsDao = db.portfolioSettingsDao() // *** 新增 DAO 引用 ***
 
     // ... (StateFlows, SharedFlows, isInitialLoad, init block remain mostly the same) ...
     private val _uiState = MutableStateFlow(StockUiState())
@@ -67,27 +71,79 @@ class StockViewModel(application: Application) : ViewModel() {
     init {
         val holdingsFlow = stockDao.getAllStocksWithTransactions().map { list -> list.map { it.toUIModel() } }
         val cashFlow = cashDao.getAllCashTransactions().map { list -> list.map { it.toUIModel() } }
+        val nameFlow = portfolioSettingsDao.getPortfolioName().map { it ?: "我的投资组合" } // *** 新增：投资组合名称流 ***
 
         viewModelScope.launch(Dispatchers.IO) {
-            combine(holdingsFlow, cashFlow, _priceDataFlow) { holdingsFromDb, cashTransactions, priceDataMap ->
+            combine(holdingsFlow, cashFlow, _priceDataFlow, nameFlow) { holdingsFromDb, cashTransactions, priceDataMap, portfolioName ->
                 val cashBalance = cashTransactions.sumOf {
                     if (it.type == CashTransactionType.DEPOSIT) it.amount else -it.amount
                 }
 
                 val finalHoldings = holdingsFromDb.map { dbHolding ->
                     priceDataMap[dbHolding.id]?.let { prices ->
-                        val dailyPL = (prices.currentPrice - prices.previousClose) * dbHolding.totalQuantity
-                        val dailyPLPercent = if (prices.previousClose != 0.0) (prices.currentPrice - prices.previousClose) / prices.previousClose * 100 else 0.0
+                        val today = LocalDate.now()
+
+                        // 1. 获取昨日收盘时的持股数量 (隔夜仓位)
+                        val overnightQuantity = dbHolding.getQuantityOnDate(today.minusDays(1))
+
+                        // 2. 昨日收盘时的隔夜持仓总价值
+                        val overnightValueAtClose = overnightQuantity * prices.previousClose
+
+                        // 3. 计算当日交易的净现金投入（买入为正，卖出为负）。只计算 BUY/SELL 交易。
+                        var netCashInvestedToday = 0.0
+                        val todayTransactions = dbHolding.transactions.filter { it.date == today }
+
+                        for (t in todayTransactions) {
+                            when (t.type) {
+                                TransactionType.BUY -> {
+                                    // 买入: 现金流出 (投资增加)
+                                    netCashInvestedToday += (t.quantity * t.price) + t.fee
+                                }
+                                TransactionType.SELL -> {
+                                    // 卖出: 现金流入 (投资减少)
+                                    netCashInvestedToday -= (t.quantity * t.price) - t.fee
+                                }
+                                else -> { /* 忽略 DIVIDEND/SPLIT */ }
+                            }
+                        }
+
+                        // 4. 当前持仓的总市值
+                        val currentMarketValue = dbHolding.totalQuantity * prices.currentPrice
+
+                        // 5. 当日总盈亏 ($)
+                        // Daily PL = Current Market Value - Overnight Value at Close - Net Cash Invested Today
+                        // 这里的 Net Cash Invested Today 专指 BUY/SELL 产生的净投入/产出，排除了分红。
+                        val dailyPL = currentMarketValue - overnightValueAtClose - netCashInvestedToday
+
+                        // 6. 额外处理当日分红收入，将其加回 DailyPL (分红是当日利润的一部分)
+                        val todayDividend = todayTransactions
+                            .filter { it.type == TransactionType.DIVIDEND }
+                            .sumOf { it.quantity * it.price }
+
+                        val finalDailyPL = dailyPL + todayDividend
+
+                        // 7. 当日盈亏 (%) 的计算基数
+                        // 基数 = 昨日市值 + 当日净买入成本（如果净买入 > 0）
+                        val finalBasis: Double = when {
+                            overnightValueAtClose != 0.0 -> overnightValueAtClose
+                            // 如果昨日没有仓位，则使用当日净投入的绝对值作为基数
+                            netCashInvestedToday != 0.0 -> netCashInvestedToday.absoluteValue
+                            else -> 0.0
+                        }
+
+                        val dailyPLPercent = if (finalBasis != 0.0) finalDailyPL / finalBasis * 100 else 0.0
+                        // *** 修正结束 ***
+
                         dbHolding.copy(
                             currentPrice = prices.currentPrice,
-                            dailyPL = dailyPL,
+                            dailyPL = finalDailyPL, // 使用包含分红的最终当日盈亏
                             dailyPLPercent = dailyPLPercent
                             // name = priceDataMap[dbHolding.id]?.name ?: dbHolding.name // Optional: keep existing name if network fails?
                         )
                     } ?: dbHolding
                 }
 
-                _uiState.update { it.copy(holdings = finalHoldings, cashBalance = cashBalance) }
+                _uiState.update { it.copy(holdings = finalHoldings, cashBalance = cashBalance, portfolioName = portfolioName) } // *** 更新 portfolioName ***
 
                 if (isInitialLoad && finalHoldings.isNotEmpty()) {
                     isInitialLoad = false
@@ -200,7 +256,7 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 
 
-    // ... (fetchInitialStockData, selectStock, prepareNewTransaction, prepareEditTransaction remain the same) ...
+    // ... (fetchInitialStockData, selectStock, prepareNewTransaction, prepareEditTransaction, saveOrUpdateTransaction, saveOrUpdateTransactionInternal, addCashTransaction, savePortfolioName, deleteTransaction remain the same) ...
     suspend fun fetchInitialStockData(ticker: String): YahooFinanceScraper.ScrapedData? {
         val upperCaseTicker = ticker.uppercase()
         return withContext(Dispatchers.IO) {
@@ -326,6 +382,17 @@ class StockViewModel(application: Application) : ViewModel() {
                 stockTransactionId = transaction.id // Link to the stock transaction
             )
             cashDao.insertCashTransaction(cashTransaction.toEntity())
+        }
+    }
+
+    // *** 新增：保存投资组合名称的函数 ***
+    fun savePortfolioName(name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (name.isNotBlank()) {
+                portfolioSettingsDao.insert(PortfolioSettingsEntity(name = name))
+            } else {
+                _toastEvents.emit("投资组合名称不能为空")
+            }
         }
     }
 

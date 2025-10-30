@@ -6,5 +6,23 @@
         <!-- Customize your theme here. -->
     </style>
 
+    <!-- 自定义 AlertDialog 样式，用于深色背景 -->
+    <style name="AlertDialogCustom" parent="Theme.AppCompat.Dialog.Alert">
+        <item name="android:windowBackground">@color/background_dark</item>
+        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColorAlertDialogListItem">@color/white</item>
+        <item name="colorAccent">@color/colorPrimary</item>
+        <item name="buttonBarNegativeButtonStyle">@style/NegativeButton</item>
+        <item name="buttonBarPositiveButtonStyle">@style/PositiveButton</item>
+    </style>
+
+    <style name="NegativeButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:textColor">@color/subline_title</item>
+    </style>
+
+    <style name="PositiveButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+        <item name="android:textColor">@color/colorPrimary</item>
+    </style>
+
 
 </resources>
