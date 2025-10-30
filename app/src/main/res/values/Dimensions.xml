@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 用于对话框和UI的通用间距 -->
+    <dimen name="edit_text_padding">24dp</dimen>
+</resources>

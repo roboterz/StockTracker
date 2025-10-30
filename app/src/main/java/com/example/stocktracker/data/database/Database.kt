@@ -9,6 +9,7 @@ import com.example.stocktracker.data.SampleData
 import com.example.stocktracker.data.TransactionType
 import com.example.stocktracker.data.toEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject // Import JSONObject
 import java.io.BufferedReader // Import BufferedReader
@@ -58,6 +59,12 @@ data class CashTransactionEntity(
     val stockTransactionId: String? // 可为空，用于关联股票交易
 )
 
+// *** 新增：投资组合设置实体 ***
+@Entity(tableName = "portfolio_settings")
+data class PortfolioSettingsEntity(
+    @PrimaryKey val id: Int = 1, // 固定ID，确保只有一行记录
+    val name: String
+)
 
 // 用于查询的组合数据类 (POJO for Queries)
 data class StockWithTransactions(
@@ -140,7 +147,7 @@ interface StockDao {
     suspend fun deleteTransactionById(transactionId: String)
 }
 
-// ... (CashDao, Database, and Companion object remain the same) ...
+// ... (CashDao remains the same) ...
 @Dao
 interface CashDao {
     @Query("SELECT * FROM cash_transactions ORDER BY date DESC")
@@ -153,15 +160,26 @@ interface CashDao {
     suspend fun deleteByStockTransactionId(stockTransactionId: String)
 }
 
+// *** 新增：投资组合设置 DAO ***
+@Dao
+interface PortfolioSettingsDao {
+    @Query("SELECT name FROM portfolio_settings WHERE id = 1")
+    fun getPortfolioName(): Flow<String?>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(setting: PortfolioSettingsEntity)
+}
+
 
 // 数据库
-// *** 更新版本号，添加 StockNameEntity ***
-@Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class, StockNameEntity::class], version = 4)
+// *** 更新版本号到 5，添加 PortfolioSettingsEntity ***
+@Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class, StockNameEntity::class, PortfolioSettingsEntity::class], version = 5)
 @TypeConverters(Converters::class)
 abstract class StockDatabase : RoomDatabase() {
     abstract fun stockDao(): StockDao
     abstract fun cashDao(): CashDao
-    abstract fun stockNameDao(): StockNameDao // *** 新增 StockNameDao ***
+    abstract fun stockNameDao(): StockNameDao
+    abstract fun portfolioSettingsDao(): PortfolioSettingsDao // *** 新增 PortfolioSettingsDao ***
 
     companion object {
         @Volatile
@@ -183,16 +201,27 @@ abstract class StockDatabase : RoomDatabase() {
                                 INSTANCE?.let { database ->
                                     // 预填充 SampleData (如果需要)
                                     // prePopulateSampleData(database)
-                                    // *** 预填充股票名称数据 ***
+                                    // *** 预填充股票名称数据和默认组合名称 ***
+                                    runBlocking {
+                                        database.portfolioSettingsDao().insert(PortfolioSettingsEntity(name = "我的投资组合"))
+                                    }
                                     prePopulateStockNames(context, database)
                                 }
                             }
                         }
                         // 如果需要，可以在 onOpen 中也添加填充逻辑，以处理数据库已存在但表为空的情况
-                        // override fun onOpen(db: SupportSQLiteDatabase) {
-                        //     super.onOpen(db)
-                        //     // Check if stock_names table is empty and populate if needed
-                        // }
+                        override fun onOpen(db: SupportSQLiteDatabase) {
+                            super.onOpen(db)
+                            // 确保默认组合名称存在（如果用户没有修改过）
+                            Executors.newSingleThreadExecutor().execute {
+                                runBlocking {
+                                    val name = INSTANCE?.portfolioSettingsDao()?.getPortfolioName()?.firstOrNull()
+                                    if (name == null || name.isBlank()) {
+                                        INSTANCE?.portfolioSettingsDao()?.insert(PortfolioSettingsEntity(name = "我的投资组合"))
+                                    }
+                                }
+                            }
+                        }
                     })
                     .fallbackToDestructiveMigration() // 迁移策略
                     .build()

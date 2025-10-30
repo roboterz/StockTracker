@@ -22,7 +22,7 @@
             app:menu="@menu/portfolio_menu"
             app:navigationIcon="@drawable/ic_arrow_back"
             app:navigationIconTint="@android:color/white"
-            app:title="陈明"
+            app:title="我的投资组合"
             app:titleTextColor="@android:color/white"
             app:contentInsetStartWithNavigation="0dp"/>
 
@@ -46,4 +46,3 @@
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 </LinearLayout>
-

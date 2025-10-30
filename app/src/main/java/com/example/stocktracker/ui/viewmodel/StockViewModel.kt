@@ -10,6 +10,7 @@ import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.data.Transaction
 import com.example.stocktracker.data.TransactionType
+import com.example.stocktracker.data.database.PortfolioSettingsEntity
 import com.example.stocktracker.data.database.StockDatabase
 import com.example.stocktracker.data.database.StockNameEntity
 import com.example.stocktracker.data.toEntity
@@ -25,7 +26,7 @@ import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
-// ... (NavigationEvent, StockUiState remain the same) ...
+// ... (NavigationEvent remains the same) ...
 sealed class NavigationEvent {
     object NavigateBack : NavigationEvent()
 }
@@ -35,7 +36,8 @@ data class StockUiState(
     val selectedStockId: String? = null,
     val transactionToEditId: String? = null,
     val cashBalance: Double = 0.0,
-    val isRefreshing: Boolean = false
+    val isRefreshing: Boolean = false,
+    val portfolioName: String = "我的投资组合" // *** 新增：投资组合名称 ***
 ) {
     val selectedStock: StockHolding
         get() = holdings.find { it.id == selectedStockId } ?: StockHolding.empty
@@ -50,6 +52,7 @@ class StockViewModel(application: Application) : ViewModel() {
     private val stockDao = db.stockDao()
     private val cashDao = db.cashDao()
     private val stockNameDao = db.stockNameDao()
+    private val portfolioSettingsDao = db.portfolioSettingsDao() // *** 新增 DAO 引用 ***
 
     // ... (StateFlows, SharedFlows, isInitialLoad, init block remain mostly the same) ...
     private val _uiState = MutableStateFlow(StockUiState())
@@ -67,9 +70,10 @@ class StockViewModel(application: Application) : ViewModel() {
     init {
         val holdingsFlow = stockDao.getAllStocksWithTransactions().map { list -> list.map { it.toUIModel() } }
         val cashFlow = cashDao.getAllCashTransactions().map { list -> list.map { it.toUIModel() } }
+        val nameFlow = portfolioSettingsDao.getPortfolioName().map { it ?: "我的投资组合" } // *** 新增：投资组合名称流 ***
 
         viewModelScope.launch(Dispatchers.IO) {
-            combine(holdingsFlow, cashFlow, _priceDataFlow) { holdingsFromDb, cashTransactions, priceDataMap ->
+            combine(holdingsFlow, cashFlow, _priceDataFlow, nameFlow) { holdingsFromDb, cashTransactions, priceDataMap, portfolioName ->
                 val cashBalance = cashTransactions.sumOf {
                     if (it.type == CashTransactionType.DEPOSIT) it.amount else -it.amount
                 }
@@ -87,7 +91,7 @@ class StockViewModel(application: Application) : ViewModel() {
                     } ?: dbHolding
                 }
 
-                _uiState.update { it.copy(holdings = finalHoldings, cashBalance = cashBalance) }
+                _uiState.update { it.copy(holdings = finalHoldings, cashBalance = cashBalance, portfolioName = portfolioName) } // *** 更新 portfolioName ***
 
                 if (isInitialLoad && finalHoldings.isNotEmpty()) {
                     isInitialLoad = false
@@ -326,6 +330,17 @@ class StockViewModel(application: Application) : ViewModel() {
                 stockTransactionId = transaction.id // Link to the stock transaction
             )
             cashDao.insertCashTransaction(cashTransaction.toEntity())
+        }
+    }
+
+    // *** 新增：保存投资组合名称的函数 ***
+    fun savePortfolioName(name: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (name.isNotBlank()) {
+                portfolioSettingsDao.insert(PortfolioSettingsEntity(name = name))
+            } else {
+                _toastEvents.emit("投资组合名称不能为空")
+            }
         }
     }
 
