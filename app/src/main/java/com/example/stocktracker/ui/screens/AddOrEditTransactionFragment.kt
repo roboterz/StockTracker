@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -172,7 +173,8 @@ class AddOrEditTransactionFragment : Fragment() {
 
         binding.buttonDelete.setOnClickListener {
             transactionToEdit?.id?.let { id ->
-                viewModel.deleteTransaction(id)
+                // *** 修改：弹出确认对话框后再删除 ***
+                showDeleteConfirmationDialog(id)
             }
         }
 
@@ -184,6 +186,25 @@ class AddOrEditTransactionFragment : Fragment() {
             }
         }
     }
+
+    // *** 新增：删除确认对话框方法 ***
+    private fun showDeleteConfirmationDialog(transactionId: String) {
+        // 使用自定义 AlertDialog 样式
+        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            .setTitle(R.string.dialog_delete_title)
+            .setMessage(R.string.dialog_delete_message)
+            .setPositiveButton(R.string.dialog_confirm_delete) { dialog, _ ->
+                // 确认后执行删除操作
+                viewModel.deleteTransaction(transactionId)
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.dialog_cancel) { dialog, _ ->
+                dialog.cancel()
+            }
+            .show()
+    }
+    // *** 新增结束 ***
+
 
     private fun observeNavigation() {
         viewLifecycleOwner.lifecycleScope.launch {
@@ -200,4 +221,3 @@ class AddOrEditTransactionFragment : Fragment() {
         _binding = null
     }
 }
-
