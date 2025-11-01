@@ -80,7 +80,7 @@ class StockViewModel(application: Application) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             combine(holdingsFlow, cashFlow, _priceDataFlow, nameFlow) { holdingsFromDb, cashTransactions, priceDataMap, portfolioName ->
                 val cashBalance = cashTransactions.sumOf {
-                    if (it.type == CashTransactionType.DEPOSIT) it.amount else -it.amount
+                    if (it.type == CashTransactionType.DEPOSIT || it.type == CashTransactionType.SELL || it.type == CashTransactionType.DIVIDEND) it.amount else -it.amount
                 }
 
                 // *** 1. 拆分活动持仓和已平仓位 ***
@@ -410,7 +410,7 @@ class StockViewModel(application: Application) : ViewModel() {
         }
 
         if (amount != 0.0) {
-            val cashType = if (amount > 0) CashTransactionType.DEPOSIT else CashTransactionType.WITHDRAWAL
+            val cashType = if (amount > 0) CashTransactionType.SELL else CashTransactionType.BUY
             val cashTransaction = CashTransaction(
                 date = transaction.date,
                 type = cashType,
