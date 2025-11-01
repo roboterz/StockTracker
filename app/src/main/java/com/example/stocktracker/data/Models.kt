@@ -22,7 +22,7 @@ data class Transaction(
 
 // --- 现金交易模型 ---
 enum class CashTransactionType {
-    DEPOSIT, WITHDRAWAL
+    SELL, BUY, DEPOSIT, WITHDRAWAL, DIVIDEND, SPLIT
 }
 
 data class CashTransaction(
