@@ -19,6 +19,8 @@ import com.example.stocktracker.ui.viewmodel.StockViewModel
 import com.example.stocktracker.ui.viewmodel.StockViewModelFactory
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 class CashTransactionFragment : Fragment() {
 
@@ -50,10 +52,32 @@ class CashTransactionFragment : Fragment() {
             findNavController().popBackStack()
         }
 
+
+        // *** 新增：设置默认日期 ***
+        val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
+        binding.editTextDate.setText(LocalDate.now().format(formatter))
+        // *** 结束 ***
+
+
         binding.buttonSave.setOnClickListener {
             val amount = binding.editTextAmount.text.toString().toDoubleOrNull()
+
+            // *** 新增：获取日期 ***
+            val dateStr = binding.editTextDate.text.toString()
+            val date = try {
+                LocalDate.parse(dateStr, formatter)
+            } catch (e: Exception) {
+                null
+            }
+
             if (amount == null || amount <= 0) {
                 Toast.makeText(requireContext(), "请输入有效的金额", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            // *** 新增：检查日期 ***
+            if (date == null) {
+                Toast.makeText(requireContext(), "请输入有效的日期 (格式 yyyy/MM/dd)", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
@@ -62,7 +86,8 @@ class CashTransactionFragment : Fragment() {
             } else {
                 CashTransactionType.WITHDRAWAL
             }
-            viewModel.addCashTransaction(amount, type)
+            // *** 修改：传入日期 ***
+            viewModel.addCashTransaction(amount, type, date)
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
