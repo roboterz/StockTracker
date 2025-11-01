@@ -12,36 +12,26 @@
         android:paddingTop="5dp"
         android:paddingBottom="4dp">
 
-        <!-- Column 1: Name & Ticker -->
+        <!-- Column 1: 名称代码 -->
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1.5"
+            android:layout_weight="2"
             android:text="名称代码"
             android:textColor="#CCAAAAAA"
             android:textSize="12sp" />
 
-        <!-- Column 2: Market Value & Total Cost -->
+        <!-- Column 2: 总成本 -->
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1.5"
             android:gravity="end"
-            android:text="市值/总成本"
+            android:text="总成本"
             android:textColor="#CCAAAAAA"
             android:textSize="12sp" />
 
-        <!-- Column 3: Daily P/L -->
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1.5"
-            android:gravity="end"
-            android:text="当日盈亏"
-            android:textColor="#CCAAAAAA"
-            android:textSize="12sp" />
-
-        <!-- Column 4: Total P/L -->
+        <!-- Column 3: 总盈亏 -->
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -50,7 +40,6 @@
             android:text="总盈亏"
             android:textColor="#CCAAAAAA"
             android:textSize="12sp" />
-
 
     </LinearLayout>
 
