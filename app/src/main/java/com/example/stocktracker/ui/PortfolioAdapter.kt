@@ -13,7 +13,6 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.stocktracker.R
-import com.example.stocktracker.data.CashTransaction
 import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.databinding.*
@@ -26,7 +25,6 @@ import com.example.stocktracker.ui.viewmodel.StockUiState
 import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import kotlin.math.absoluteValue
 
 // --- View Holder Types ---
 private const val ITEM_VIEW_TYPE_HEADER = 0
@@ -101,7 +99,7 @@ class PortfolioAdapter(
             is ClosedPositionHeaderViewHolder -> holder.bind()
             is ClosedPositionViewHolder -> {
                 val closedItem = getItem(position) as PortfolioListItem.ClosedPosition
-                holder.bind(closedItem.stock)
+                holder.bind(closedItem.stock, onStockClicked)
             }
             is CashHeaderViewHolder -> holder.bind()
             is CashTransactionViewHolder -> {
@@ -497,7 +495,9 @@ class PortfolioAdapter(
 
     class ClosedPositionViewHolder(private val binding: ListItemClosedPositionBinding) : RecyclerView.ViewHolder(binding.root) {
         @SuppressLint("SetTextI18n")
-        fun bind(stock: StockHolding) {
+        fun bind(stock: StockHolding, onStockClicked: (StockHolding) -> Unit) {
+            itemView.setOnClickListener { onStockClicked(stock) }
+
             binding.textViewName.text = stock.name
             binding.textViewTicker.text = stock.ticker
             binding.textViewTotalCost.text = formatCurrency(stock.totalCostOfAllBuys, false)
@@ -545,19 +545,56 @@ class PortfolioAdapter(
         @SuppressLint("SetTextI18n")
         fun bind(transaction: com.example.stocktracker.data.CashTransaction) {
             binding.textViewDate.text = transaction.date.format(dateFormatter)
-            val isDeposit = transaction.type == com.example.stocktracker.data.CashTransactionType.DEPOSIT
+            //val isDeposit = transaction.type == com.example.stocktracker.data.CashTransactionType.DEPOSIT
 
-            if (isDeposit) {
-                binding.textViewType.text = "存入"
-                binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
-                binding.textViewAmount.text = formatCurrency(transaction.amount, true)
-                binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
-            } else {
-                binding.textViewType.text = "取出"
-                binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
-                binding.textViewAmount.text = formatCurrency(-transaction.amount, true)
-                binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+            when (transaction.type){
+                CashTransactionType.DEPOSIT -> {
+                    binding.textViewType.text = "存入"
+                    binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+                    binding.textViewAmount.text = formatCurrency(transaction.amount, true)
+                    binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+                }
+                CashTransactionType.WITHDRAWAL -> {
+                    binding.textViewType.text = "取出"
+                    binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+                    binding.textViewAmount.text = formatCurrency(-transaction.amount, true)
+                    binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+                }
+                CashTransactionType.SELL -> {
+                    binding.textViewType.text = "卖出"
+                    binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+                    binding.textViewAmount.text = formatCurrency(transaction.amount, true)
+                    binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+                }
+                CashTransactionType.BUY -> {
+                    binding.textViewType.text = "买入"
+                    binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+                    binding.textViewAmount.text = formatCurrency(-transaction.amount, true)
+                    binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+                }
+                CashTransactionType.DIVIDEND -> {
+                    binding.textViewType.text = "分红"
+                    binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+                    binding.textViewAmount.text = formatCurrency(transaction.amount, true)
+                    binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+                }
+                CashTransactionType.SPLIT -> {
+
+                }
             }
+
+
+//            if (isDeposit) {
+//                binding.textViewType.text = "存入"
+//                binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+//                binding.textViewAmount.text = formatCurrency(transaction.amount, true)
+//                binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
+//            } else {
+//                binding.textViewType.text = "取出"
+//                binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+//                binding.textViewAmount.text = formatCurrency(-transaction.amount, true)
+//                binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
+//            }
         }
 
         companion object {
