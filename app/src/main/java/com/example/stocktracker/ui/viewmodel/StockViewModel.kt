@@ -434,17 +434,20 @@ class StockViewModel(application: Application) : ViewModel() {
 
 
     // ... (addCashTransaction remains the same) ...
-    fun addCashTransaction(amount: Double, type: CashTransactionType) {
+    // *** 修改：增加 date 参数 ***
+    fun addCashTransaction(amount: Double, type: CashTransactionType, date: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
             if (amount <= 0) {
                 _toastEvents.emit("金额必须大于0")
                 return@launch
             }
-            val cashTransaction = CashTransaction(date = LocalDate.now(), type = type, amount = amount)
+            // *** 修改：使用传入的 date ***
+            val cashTransaction = CashTransaction(date = date, type = type, amount = amount)
             cashDao.insertCashTransaction(cashTransaction.toEntity())
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }
+
 
     /**
      * 删除指定的交易记录，并根据交易类型清理相关的自动生成记录（分红/拆股/合股）。
