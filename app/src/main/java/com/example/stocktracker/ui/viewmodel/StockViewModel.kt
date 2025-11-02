@@ -44,8 +44,9 @@ data class StockUiState(
     val closedPositions: List<StockHolding> = emptyList() // *** 新增：平仓列表 ***
 ) {
     val selectedStock: StockHolding
-        get() = holdings.find { it.id == selectedStockId } ?: StockHolding.empty
-
+        get() = holdings.find { it.id == selectedStockId }
+            ?: closedPositions.find { it.id == selectedStockId } // <-- 修复：同时搜索 closedPositions 列表
+            ?: StockHolding.empty
     val transactionToEdit: Transaction?
         get() = selectedStock.transactions.find { it.id == transactionToEditId }
 }
