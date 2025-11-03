@@ -12,7 +12,7 @@
     <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
-
+        <!-- ... (Title and Toggle Buttons remain the same) ... -->
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -64,7 +64,7 @@
                 android:textSize="12sp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
     </RelativeLayout>
-
+    <!-- ... (Legend layout remains the same) ... -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -117,6 +117,20 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <!-- *** 新增：加载指示器 *** -->
+        <ProgressBar
+            android:id="@+id/pl_chart_progress_bar"
+            style="?android:attr/progressBarStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="@id/pl_line_chart"
+            app:layout_constraintEnd_toEndOf="@id/pl_line_chart"
+            app:layout_constraintStart_toStartOf="@id/pl_line_chart"
+            app:layout_constraintTop_toTopOf="@id/pl_line_chart"
+            tools:visibility="visible" />
+
+        <!-- ... (Y-axis labels remain the same) ... -->
         <TextView
             android:id="@+id/pl_chart_percent_max"
             android:layout_width="wrap_content"
@@ -150,6 +164,7 @@
             app:layout_constraintEnd_toEndOf="parent"
             tools:text="-25.96%" />
 
+        <!-- ... (X-axis labels layout remains the same) ... -->
         <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/date_labels_container"
             android:layout_width="0dp"
@@ -223,7 +238,7 @@
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
-
+    <!-- ... (Time range toggle buttons remain the same) ... -->
     <LinearLayout
         android:id="@+id/toggle_group_time_range"
         android:layout_width="match_parent"
@@ -304,4 +319,3 @@
     </LinearLayout>
 
 </LinearLayout>
-

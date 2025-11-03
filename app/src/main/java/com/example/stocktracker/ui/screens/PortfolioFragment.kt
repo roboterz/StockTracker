@@ -23,6 +23,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import com.example.stocktracker.MainActivity
 import com.example.stocktracker.R
+import com.example.stocktracker.data.CashTransaction
 import com.example.stocktracker.databinding.FragmentPortfolioBinding
 import com.example.stocktracker.ui.PortfolioAdapter
 import com.example.stocktracker.ui.viewmodel.StockUiState
@@ -79,6 +80,8 @@ class PortfolioFragment : Fragment() {
 
         binding.swipeRefreshLayout.setOnRefreshListener {
             viewModel.refreshData()
+            // *** 重新触发当前选定范围的图表计算 ***
+            viewModel.updatePortfolioChart(viewModel.uiState.value.chartTimeRange)
         }
 
         // *** 修改：初始化 Adapter 并传入所有点击回调 ***
@@ -103,6 +106,10 @@ class PortfolioFragment : Fragment() {
             onCashItemClicked = { cashTransaction ->
                 viewModel.prepareEditCashTransaction(cashTransaction.id)
                 findNavController().navigate(R.id.action_portfolioFragment_to_cashTransactionFragment)
+            },
+            // *** 新增：处理图表时间范围选择 ***
+            onTimeRangeSelected = { timeRange ->
+                viewModel.updatePortfolioChart(timeRange)
             }
         )
         binding.recyclerViewStocks.adapter = portfolioAdapter
@@ -120,7 +127,7 @@ class PortfolioFragment : Fragment() {
                 }
             }
         }
-
+// ... (toast listener remains the same) ...
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.toastEvents.collectLatest { message ->
                 Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
@@ -131,7 +138,6 @@ class PortfolioFragment : Fragment() {
     }
 
     // *** 新增：根据当前选择的
-// ... (updateAdapterList remains the same) ...
     private fun updateAdapterList(uiState: StockUiState) {
         val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
         // 创建一个仅包含活动持仓的 uiState 子集用于 Header 和 Chart
@@ -140,8 +146,14 @@ class PortfolioFragment : Fragment() {
         val portfolioItems = mutableListOf<PortfolioListItem>()
         // 1. 添加 Header (始终显示活动持仓的统计)
         portfolioItems.add(PortfolioListItem.Header(filteredUiState))
-        // 2. 添加盈亏图表
-        portfolioItems.add(PortfolioListItem.ProfitLossChart())
+
+        // 2. 添加盈亏图表 (*** 修改：传入真实数据 ***)
+        portfolioItems.add(PortfolioListItem.ProfitLossChart(
+            chartData = uiState.portfolioChartData,
+            selectedRange = uiState.chartTimeRange,
+            isLoading = uiState.isChartLoading
+        ))
+
         // 3. 添加资产分布图 (包含当前选中的按钮状态)
         // *** 修复：即使没有持仓，也要显示 Chart 项以显示按钮 ***
         portfolioItems.add(PortfolioListItem.Chart(filteredUiState.holdings, selectedAssetType))
@@ -284,3 +296,4 @@ class PortfolioFragment : Fragment() {
         _binding = null
     }
 }
+

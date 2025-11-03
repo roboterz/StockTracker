@@ -26,11 +26,18 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+import java.util.TreeMap
 import kotlin.math.absoluteValue
 
 // ... (NavigationEvent remain the same) ...
 sealed class NavigationEvent {
     object NavigateBack : NavigationEvent()
+}
+
+// *** 新增：图表时间范围的枚举 ***
+enum class TimeRange {
+    FIVE_DAY, ONE_MONTH, THREE_MONTH, SIX_MONTH, ONE_YEAR, FIVE_YEAR, ALL
 }
 
 data class StockUiState(
@@ -42,8 +49,16 @@ data class StockUiState(
     val portfolioName: String = "我的投资组合", // *** 新增：投资组合名称 ***
     val cashTransactions: List<CashTransaction> = emptyList(), // *** 新增：现金交易列表 ***
     val closedPositions: List<StockHolding> = emptyList(), // *** 新增：平仓列表 ***
-    val cashTransactionToEditId: String? = null // *** 新增：要编辑的现金交易ID ***
+    val cashTransactionToEditId: String? = null, // *** 新增：要编辑的现金交易ID ***
+
+    // *** 新增：图表相关状态 ***
+    val chartTimeRange: TimeRange = TimeRange.ONE_MONTH,
+    val isChartLoading: Boolean = false,
+    val portfolioChartData: List<ChartDataPoint> = emptyList()
 ) {
+    // *** 新增：图表数据点的数据类 ***
+    data class ChartDataPoint(val date: LocalDate, val value: Double)
+
     val selectedStock: StockHolding
         get() = holdings.find { it.id == selectedStockId }
             ?: closedPositions.find { it.id == selectedStockId } // <-- 修复：同时搜索 closedPositions 列表
@@ -59,7 +74,6 @@ data class StockUiState(
 
 
 class StockViewModel(application: Application) : ViewModel() {
-    // ... (property declarations and init block remain the same) ...
     private val appContext = application.applicationContext // *** 新增：获取应用上下文 ***
     private val db = StockDatabase.getDatabase(application)
     private val stockDao = db.stockDao()
@@ -80,6 +94,11 @@ class StockViewModel(application: Application) : ViewModel() {
     private val _priceDataFlow = MutableStateFlow<Map<String, YahooFinanceScraper.ScrapedData>>(emptyMap())
     private var isInitialLoad = true
 
+    // *** 新增：用于历史价格的缓存 ***
+    private val historicalPriceCache = mutableMapOf<String, Map<LocalDate, Double>>()
+    private var chartCalculationJob: Job? = null
+
+
     init {
         val holdingsFlow = stockDao.getAllStocksWithTransactions().map { list -> list.map { it.toUIModel() } }
         val cashFlow = cashDao.getAllCashTransactions().map { list -> list.map { it.toUIModel() } }
@@ -91,6 +110,7 @@ class StockViewModel(application: Application) : ViewModel() {
                     if (it.type == CashTransactionType.DEPOSIT || it.type == CashTransactionType.SELL || it.type == CashTransactionType.DIVIDEND) it.amount else -it.amount
                 }
 
+                // ... (holdings calculation logic remains the same) ...
                 // *** 1. 拆分活动持仓和已平仓位 ***
                 //    活动持仓：当前数量 > 0
                 //    已平仓位：当前数量 <= 0 并且 曾经有过交易 (总盈亏 != 0 或 总卖出 != 0)
@@ -164,6 +184,7 @@ class StockViewModel(application: Application) : ViewModel() {
                     } ?: dbHolding
                 }
 
+
                 _uiState.update {
                     it.copy(
                         holdings = finalActiveHoldings,
@@ -174,9 +195,14 @@ class StockViewModel(application: Application) : ViewModel() {
                     )
                 }
 
-                if (isInitialLoad && finalActiveHoldings.isNotEmpty()) {
+                if (isInitialLoad) {
                     isInitialLoad = false
-                    refreshData()
+                    // *** 修改：在初始加载时，同时刷新当前数据和默认图表 ***
+                    if (finalActiveHoldings.isNotEmpty()) {
+                        refreshData()
+                    }
+                    // 触发默认图表加载（例如 1M）
+                    updatePortfolioChart(TimeRange.ONE_MONTH)
                 }
             }
                 .catch { throwable ->
@@ -292,8 +318,176 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
+    // *** 新增：图表计算相关方法 ***
 
-    // ... (fetchInitialStockData, selectStock, prepareNewTransaction, prepareEditTransaction, saveOrUpdateTransaction, saveOrUpdateTransactionInternal, savePortfolioName remain the same) ...
+    /**
+     * 公共方法，由 UI 调用以更新图表。
+     */
+    fun updatePortfolioChart(timeRange: TimeRange) {
+        val TAG = "StockViewModel"
+
+        // 如果已在计算，先取消
+        chartCalculationJob?.cancel()
+        chartCalculationJob = viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isChartLoading = true, chartTimeRange = timeRange) }
+                val chartData = calculatePortfolioHistory(timeRange)
+                _uiState.update { it.copy(portfolioChartData = chartData, isChartLoading = false) }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) {
+                    Log.d(TAG, "Chart calculation cancelled.")
+                    throw e // Re-throw cancellation
+                }
+                Log.e(TAG, "Failed to calculate portfolio history", e)
+                _toastEvents.emit("图表数据计算失败")
+                _uiState.update { it.copy(portfolioChartData = emptyList(), isChartLoading = false) }
+            }
+        }
+    }
+
+    /**
+     * 核心计算逻辑：计算投资组合的历史盈亏率。
+     */
+    private suspend fun calculatePortfolioHistory(timeRange: TimeRange): List<StockUiState.ChartDataPoint> = withContext(Dispatchers.Default) {
+        val allStockTransactions = stockDao.getAllStocksWithTransactions().first().map { it.toUIModel() }
+        val allCashTransactions = cashDao.getAllCashTransactions().first().map { it.toUIModel() }
+
+        if (allStockTransactions.isEmpty() && allCashTransactions.isEmpty()) {
+            return@withContext emptyList() // 没有交易，返回空图表
+        }
+
+        val today = LocalDate.now()
+        val firstTransactionDate = allStockTransactions.flatMap { it.transactions }.minOfOrNull { it.date }
+        val firstCashDate = allCashTransactions.minOfOrNull { it.date }
+
+        val portfolioStartDate = when {
+            firstTransactionDate != null && firstCashDate != null -> if (firstTransactionDate.isBefore(firstCashDate)) firstTransactionDate else firstCashDate
+            firstTransactionDate != null -> firstTransactionDate
+            firstCashDate != null -> firstCashDate
+            else -> today // 理论上不会到这里
+        }
+
+        val startDate = getStartDateForTimeRange(timeRange, portfolioStartDate, today)
+        val tickers = allStockTransactions.map { it.id }.distinct()
+
+        // 1. 并发获取所有需要的历史价格
+        val priceCache = fetchAndCacheHistoricalPrices(tickers, startDate)
+
+        // 2. 准备一个迭代器，从 startDate 遍历到 today
+        val chartDataPoints = mutableListOf<StockUiState.ChartDataPoint>()
+        var currentDate = startDate
+        var lastValidPriceMap = tickers.associateWith { 0.0 } // 缓存每个股票的最后有效价格
+
+        while (currentDate.isBefore(today) || currentDate.isEqual(today)) {
+            var totalMarketValue = 0.0
+            var totalNetInvestment = 0.0
+
+            // 2a. 计算当日的现金余额和总投入
+            val cashTransactionsUpToDate = allCashTransactions.filter { !it.date.isAfter(currentDate) }
+            val cashBalance = cashTransactionsUpToDate.sumOf {
+                if (it.type == CashTransactionType.DEPOSIT || it.type == CashTransactionType.SELL || it.type == CashTransactionType.DIVIDEND) it.amount else -it.amount
+            }
+            // 总投入 = 存入 - 取出
+            totalNetInvestment = cashTransactionsUpToDate.filter { it.type == CashTransactionType.DEPOSIT || it.type == CashTransactionType.WITHDRAWAL }
+                .sumOf { if (it.type == CashTransactionType.DEPOSIT) it.amount else -it.amount }
+
+
+            // 2b. 计算当日的股票市值和总投入
+            for (stock in allStockTransactions) {
+                val transactionsUpToDate = stock.transactions.filter { !it.date.isAfter(currentDate) }
+
+                var quantityHeld = 0.0
+                transactionsUpToDate.sortedBy { it.date }.forEach { t ->
+                    when (t.type) {
+                        TransactionType.BUY -> quantityHeld += t.quantity
+                        TransactionType.SELL -> quantityHeld -= t.quantity
+                        TransactionType.SPLIT -> {
+                            val ratio = t.quantity / t.price
+                            quantityHeld *= ratio
+                        }
+                        else -> { /* 忽略分红等 */ }
+                    }
+                }
+
+                // 累加股票的净成本到总投入
+                val stockNetCost = transactionsUpToDate
+                    .filter { it.type == TransactionType.BUY || it.type == TransactionType.SELL }
+                    .sumOf { if (it.type == TransactionType.BUY) (it.quantity * it.price + it.fee) else -(it.quantity * it.price - it.fee) }
+
+                totalNetInvestment += stockNetCost
+
+                // 2c. 获取当日价格并计算市值
+                val stockPriceMap = priceCache[stock.id]
+                val priceOnDate = stockPriceMap?.get(currentDate)
+
+                val priceToUse = if (priceOnDate != null) {
+                    lastValidPriceMap = lastValidPriceMap.plus(stock.id to priceOnDate) // 更新缓存
+                    priceOnDate
+                } else {
+                    lastValidPriceMap[stock.id] ?: 0.0 // 使用缓存的最后有效价格
+                }
+
+                totalMarketValue += quantityHeld * priceToUse
+            }
+
+            // 2d. 计算当日 P/L %
+            val totalAssets = totalMarketValue + cashBalance
+            val plAmount = totalAssets - totalNetInvestment
+            val plRate = if (totalNetInvestment > 0) (plAmount / totalNetInvestment) * 100.0 else 0.0
+
+            chartDataPoints.add(StockUiState.ChartDataPoint(currentDate, plRate))
+            currentDate = currentDate.plusDays(1)
+        }
+
+        return@withContext chartDataPoints
+    }
+
+    /**
+     * 并发获取并缓存所有需要的历史价格数据。
+     */
+    private suspend fun fetchAndCacheHistoricalPrices(tickers: List<String>, startDate: LocalDate): Map<String, Map<LocalDate, Double>> {
+        val priceCache = mutableMapOf<String, Map<LocalDate, Double>>()
+        tickers.map { ticker ->
+            viewModelScope.async(Dispatchers.IO) {
+                // 检查缓存
+                if (!historicalPriceCache.containsKey(ticker) || historicalPriceCache[ticker]!!.keys.minOrNull()?.isAfter(startDate) == true) {
+                    // 缓存未命中或缓存数据不够旧，重新获取
+                    val data = YahooFinanceScraper.fetchHistoricalData(ticker, startDate)
+                    val priceMap = data.associate { it.date to it.closePrice }
+                    historicalPriceCache[ticker] = priceMap // 存入缓存
+                    ticker to priceMap
+                } else {
+                    // 缓存命中
+                    ticker to (historicalPriceCache[ticker] ?: emptyMap())
+                }
+            }
+        }.awaitAll().forEach { (ticker, prices) ->
+            priceCache[ticker] = prices
+        }
+        return priceCache
+    }
+
+    /**
+     * 根据 TimeRange 计算开始日期。
+     */
+    private fun getStartDateForTimeRange(timeRange: TimeRange, portfolioStartDate: LocalDate, today: LocalDate): LocalDate {
+        val calculatedDate = when (timeRange) {
+            TimeRange.FIVE_DAY -> today.minusDays(5)
+            TimeRange.ONE_MONTH -> today.minusMonths(1)
+            TimeRange.THREE_MONTH -> today.minusMonths(3)
+            TimeRange.SIX_MONTH -> today.minusMonths(6)
+            TimeRange.ONE_YEAR -> today.minusYears(1)
+            TimeRange.FIVE_YEAR -> today.minusYears(5)
+            TimeRange.ALL -> portfolioStartDate
+        }
+        // 确保开始日期不早于投资组合的实际开始日期
+        return if (calculatedDate.isBefore(portfolioStartDate)) portfolioStartDate else calculatedDate
+    }
+
+    // *** 结束图表计算 ***
+
+
+    // ... (fetchInitialStockData, selectStock, prepareNewTransaction, prepareEditTransaction, saveOrUpdateTransaction, saveOrUpdateTransactionInternal, savePortfolioName, addCashTransaction, updateCashTransaction, deleteCashTransaction, deleteTransaction, exportDatabase, importDatabase remain the same) ...
     suspend fun fetchInitialStockData(ticker: String): YahooFinanceScraper.ScrapedData? {
         val upperCaseTicker = ticker.uppercase()
         return withContext(Dispatchers.IO) {
