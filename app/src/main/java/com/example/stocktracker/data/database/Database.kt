@@ -21,7 +21,7 @@ import java.util.concurrent.Executors
 
 // --- 数据库层 (Room Database Layer) ---
 
-// ... (StockHoldingEntity, TransactionEntity, CashTransactionEntity, PortfolioSettingsEntity, StockWithTransactions, Converters, StockDao, CashDao, PortfolioSettingsDao definitions remain the same) ...
+// ... (StockHoldingEntity, TransactionEntity, CashTransactionEntity, PortfolioSettingsEntity, StockWithTransactions, Converters, StockDao, PortfolioSettingsDao definitions remain the same) ...
 @Entity(tableName = "stocks")
 data class StockHoldingEntity(
     @PrimaryKey val id: String,
@@ -154,16 +154,22 @@ interface CashDao {
     @Query("SELECT * FROM cash_transactions ORDER BY date DESC")
     fun getAllCashTransactions(): Flow<List<CashTransactionEntity>>
 
-    @Insert
+    // *** 修改：使用 REPLACE 策略，使其可以用于更新 ***
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCashTransaction(transaction: CashTransactionEntity)
 
     @Query("DELETE FROM cash_transactions WHERE stockTransactionId = :stockTransactionId")
     suspend fun deleteByStockTransactionId(stockTransactionId: String)
+
+    // *** 新增：按 ID 删除现金交易 ***
+    @Query("DELETE FROM cash_transactions WHERE id = :transactionId")
+    suspend fun deleteCashTransactionById(transactionId: String)
 }
 
 // *** 新增：投资组合设置 DAO ***
 @Dao
 interface PortfolioSettingsDao {
+    // ... (existing code in PortfolioSettingsDao) ...
     @Query("SELECT name FROM portfolio_settings WHERE id = 1")
     fun getPortfolioName(): Flow<String?>
 
@@ -173,7 +179,7 @@ interface PortfolioSettingsDao {
 
 
 // 数据库
-// *** 更新版本号到 5，添加 PortfolioSettingsEntity ***
+// ... (Database definition and companion object remain the same) ...
 @Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class, StockNameEntity::class, PortfolioSettingsEntity::class], version = 5)
 @TypeConverters(Converters::class)
 abstract class StockDatabase : RoomDatabase() {

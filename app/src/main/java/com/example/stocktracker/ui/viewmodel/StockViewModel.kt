@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import kotlin.math.absoluteValue
 
-// ... (NavigationEvent, StockUiState remain the same) ...
+// ... (NavigationEvent remain the same) ...
 sealed class NavigationEvent {
     object NavigateBack : NavigationEvent()
 }
@@ -41,18 +41,25 @@ data class StockUiState(
     val isRefreshing: Boolean = false,
     val portfolioName: String = "我的投资组合", // *** 新增：投资组合名称 ***
     val cashTransactions: List<CashTransaction> = emptyList(), // *** 新增：现金交易列表 ***
-    val closedPositions: List<StockHolding> = emptyList() // *** 新增：平仓列表 ***
+    val closedPositions: List<StockHolding> = emptyList(), // *** 新增：平仓列表 ***
+    val cashTransactionToEditId: String? = null // *** 新增：要编辑的现金交易ID ***
 ) {
     val selectedStock: StockHolding
         get() = holdings.find { it.id == selectedStockId }
             ?: closedPositions.find { it.id == selectedStockId } // <-- 修复：同时搜索 closedPositions 列表
             ?: StockHolding.empty
+
     val transactionToEdit: Transaction?
         get() = selectedStock.transactions.find { it.id == transactionToEditId }
+
+    // *** 新增：获取要编辑的现金交易 ***
+    val cashTransactionToEdit: CashTransaction?
+        get() = cashTransactions.find { it.id == cashTransactionToEditId }
 }
 
 
 class StockViewModel(application: Application) : ViewModel() {
+    // ... (property declarations and init block remain the same) ...
     private val appContext = application.applicationContext // *** 新增：获取应用上下文 ***
     private val db = StockDatabase.getDatabase(application)
     private val stockDao = db.stockDao()
@@ -181,7 +188,7 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 
 
-    // ... (refreshData remains mostly the same, ensuring names aren't overwritten unnecessarily) ...
+    // ... (refreshData remains mostly the same) ...
     fun refreshData() {
         if (_uiState.value.isRefreshing) return
 
@@ -286,7 +293,7 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 
 
-    // ... (fetchInitialStockData, selectStock, prepareNewTransaction, prepareEditTransaction, saveOrUpdateTransaction, saveOrUpdateTransactionInternal, addCashTransaction, savePortfolioName, deleteTransaction remain the same) ...
+    // ... (fetchInitialStockData, selectStock, prepareNewTransaction, prepareEditTransaction, saveOrUpdateTransaction, saveOrUpdateTransactionInternal, savePortfolioName remain the same) ...
     suspend fun fetchInitialStockData(ticker: String): YahooFinanceScraper.ScrapedData? {
         val upperCaseTicker = ticker.uppercase()
         return withContext(Dispatchers.IO) {
@@ -434,6 +441,18 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 
 
+    // --- 现金交易相关 ---
+
+    // *** 新增：准备用于编辑的现金交易 ***
+    fun prepareEditCashTransaction(transactionId: String) {
+        _uiState.update { it.copy(cashTransactionToEditId = transactionId) }
+    }
+
+    // *** 新增：准备用于添加新现金交易（清除编辑状态） ***
+    fun prepareNewCashTransaction() {
+        _uiState.update { it.copy(cashTransactionToEditId = null) }
+    }
+
     // ... (addCashTransaction remains the same) ...
     // *** 修改：增加 date 参数 ***
     fun addCashTransaction(amount: Double, type: CashTransactionType, date: LocalDate) {
@@ -449,10 +468,38 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
+    // *** 新增：更新现金交易 ***
+    fun updateCashTransaction(transaction: CashTransaction) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (transaction.amount <= 0) {
+                _toastEvents.emit("金额必须大于0")
+                return@launch
+            }
+            // 使用 insert (带 REPLACE 策略) 来更新
+            cashDao.insertCashTransaction(transaction.toEntity())
+            _navigationEvents.emit(NavigationEvent.NavigateBack)
+        }
+    }
+
+    // *** 新增：删除现金交易 ***
+    fun deleteCashTransaction(transactionId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            // 检查此现金交易是否关联了股票交易
+            val transaction = _uiState.value.cashTransactions.find { it.id == transactionId }
+            if (transaction?.stockTransactionId != null) {
+                _toastEvents.emit("无法删除：此现金记录已关联到股票交易。")
+            } else {
+                cashDao.deleteCashTransactionById(transactionId)
+                _navigationEvents.emit(NavigationEvent.NavigateBack)
+            }
+        }
+    }
+
 
     /**
      * 删除指定的交易记录，并根据交易类型清理相关的自动生成记录（分红/拆股/合股）。
      */
+// ... (deleteTransaction remains the same) ...
     fun deleteTransaction(transactionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val stock = _uiState.value.selectedStock
@@ -498,6 +545,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     // --- 新增：数据库导出/导入功能 ---
 
+// ... (exportDatabase and importDatabase remain the same) ...
     /**
      * 将数据库导出到用户指定的 Uri (SAF)。
      */
