@@ -98,6 +98,11 @@ class PortfolioFragment : Fragment() {
             onCashClicked = {
                 selectedAssetType = AssetType.CASH
                 updateAdapterList(viewModel.uiState.value)
+            },
+            // *** 新增：处理现金条目点击 ***
+            onCashItemClicked = { cashTransaction ->
+                viewModel.prepareEditCashTransaction(cashTransaction.id)
+                findNavController().navigate(R.id.action_portfolioFragment_to_cashTransactionFragment)
             }
         )
         binding.recyclerViewStocks.adapter = portfolioAdapter
@@ -126,6 +131,7 @@ class PortfolioFragment : Fragment() {
     }
 
     // *** 新增：根据当前选择的
+// ... (updateAdapterList remains the same) ...
     private fun updateAdapterList(uiState: StockUiState) {
         val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
         // 创建一个仅包含活动持仓的 uiState 子集用于 Header 和 Chart
@@ -169,6 +175,7 @@ class PortfolioFragment : Fragment() {
 
 
     // --- SAF 启动器初始化 ---
+// ... (setupDbLaunchers remains the same) ...
     private fun setupDbLaunchers() {
         // 导出：使用 ACTION_CREATE_DOCUMENT，指定默认文件名为 .db 格式
         exportDbLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
@@ -202,6 +209,8 @@ class PortfolioFragment : Fragment() {
                     true
                 }
                 R.id.action_add_cash -> {
+                    // *** 修改：通知 ViewModel 准备添加新现金交易 ***
+                    viewModel.prepareNewCashTransaction()
                     findNavController().navigate(R.id.action_portfolioFragment_to_cashTransactionFragment)
                     true
                 }
@@ -224,6 +233,7 @@ class PortfolioFragment : Fragment() {
         }
     }
 
+    // ... (showEditPortfolioNameDialog and reStartApp remain the same) ...
     private fun showEditPortfolioNameDialog(currentName: String) {
         val editText = EditText(requireContext()).apply {
             setText(currentName)
@@ -274,4 +284,3 @@ class PortfolioFragment : Fragment() {
         _binding = null
     }
 }
-

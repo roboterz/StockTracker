@@ -5,13 +5,17 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import com.example.stocktracker.R
+import com.example.stocktracker.data.CashTransaction
 import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.databinding.FragmentCashTransactionBinding
 import com.example.stocktracker.ui.viewmodel.NavigationEvent
@@ -52,17 +56,31 @@ class CashTransactionFragment : Fragment() {
             findNavController().popBackStack()
         }
 
-
-        // *** 新增：设置默认日期 ***
+        // *** 检查是“添加”还是“编辑”模式 ***
+        val transactionToEdit = viewModel.uiState.value.cashTransactionToEdit
+        val isEditMode = transactionToEdit != null
         val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
-        binding.editTextDate.setText(LocalDate.now().format(formatter))
+
+        // *** 更新UI ***
+        binding.toolbar.title = if (isEditMode) "编辑现金交易" else "现金交易"
+        binding.buttonDelete.isVisible = isEditMode
+
+        if (isEditMode && transactionToEdit != null) {
+            // 编辑模式：填充现有数据
+            binding.editTextDate.setText(transactionToEdit.date.format(formatter))
+            binding.editTextAmount.setText(transactionToEdit.amount.toString())
+            val buttonId = if (transactionToEdit.type == CashTransactionType.DEPOSIT) binding.buttonDeposit.id else binding.buttonWithdrawal.id
+            binding.buttonToggleGroup.check(buttonId)
+        } else {
+            // 添加模式：设置默认值
+            binding.editTextDate.setText(LocalDate.now().format(formatter))
+            binding.buttonToggleGroup.check(binding.buttonDeposit.id)
+        }
         // *** 结束 ***
 
 
         binding.buttonSave.setOnClickListener {
             val amount = binding.editTextAmount.text.toString().toDoubleOrNull()
-
-            // *** 新增：获取日期 ***
             val dateStr = binding.editTextDate.text.toString()
             val date = try {
                 LocalDate.parse(dateStr, formatter)
@@ -75,7 +93,6 @@ class CashTransactionFragment : Fragment() {
                 return@setOnClickListener
             }
 
-            // *** 新增：检查日期 ***
             if (date == null) {
                 Toast.makeText(requireContext(), "请输入有效的日期 (格式 yyyy/MM/dd)", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
@@ -86,8 +103,25 @@ class CashTransactionFragment : Fragment() {
             } else {
                 CashTransactionType.WITHDRAWAL
             }
-            // *** 修改：传入日期 ***
-            viewModel.addCashTransaction(amount, type, date)
+
+            // *** 修改：根据模式调用不同的 ViewModel 方法 ***
+            if (isEditMode && transactionToEdit != null) {
+                val updatedTransaction = transactionToEdit.copy(
+                    date = date,
+                    amount = amount,
+                    type = type
+                )
+                viewModel.updateCashTransaction(updatedTransaction)
+            } else {
+                viewModel.addCashTransaction(amount, type, date)
+            }
+        }
+
+        // *** 新增：删除按钮逻辑 ***
+        binding.buttonDelete.setOnClickListener {
+            if (isEditMode && transactionToEdit != null) {
+                showDeleteConfirmationDialog(transactionToEdit.id)
+            }
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -97,6 +131,21 @@ class CashTransactionFragment : Fragment() {
                 }
             }
         }
+    }
+
+    // *** 新增：删除确认对话框 ***
+    private fun showDeleteConfirmationDialog(transactionId: String) {
+        AlertDialog.Builder(requireContext(), R.style.AlertDialogCustom)
+            .setTitle(R.string.dialog_delete_title)
+            .setMessage(R.string.dialog_delete_cash_message) // 使用新的字符串
+            .setPositiveButton(R.string.dialog_confirm_delete) { dialog, _ ->
+                viewModel.deleteCashTransaction(transactionId)
+                dialog.dismiss()
+            }
+            .setNegativeButton(R.string.dialog_cancel) { dialog, _ ->
+                dialog.cancel()
+            }
+            .show()
     }
 
     override fun onDestroyView() {

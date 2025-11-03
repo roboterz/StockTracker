@@ -19,81 +19,99 @@
         app:title="现金交易"
         app:titleTextColor="@android:color/white" />
 
-    <LinearLayout
+    <!-- *** 修改：包裹一个 ScrollView *** -->
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:layout_height="match_parent">
 
-        <com.google.android.material.button.MaterialButtonToggleGroup
-            android:id="@+id/button_toggle_group"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:checkedButton="@+id/button_deposit"
-            app:singleSelection="true">
+            android:orientation="vertical"
+            android:padding="16dp">
 
-            <Button
-                android:id="@+id/button_deposit"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="存入"
-                android:textColor="@color/toggle_button_text_color"
-                app:backgroundTint="@color/toggle_button_background_tint" />
-
-            <Button
-                android:id="@+id/button_withdrawal"
-                style="?attr/materialButtonOutlinedStyle"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="取出"
-                android:textColor="@color/toggle_button_text_color"
-                app:backgroundTint="@color/toggle_button_background_tint" />
-        </com.google.android.material.button.MaterialButtonToggleGroup>
-
-
-        <!-- *** 新增：日期输入框 *** -->
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:hint="日期"
-            android:textColorHint="@android:color/darker_gray">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/edit_text_date"
+            <com.google.android.material.button.MaterialButtonToggleGroup
+                android:id="@+id/button_toggle_group"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="date"
-                android:textColor="@android:color/white" />
-        </com.google.android.material.textfield.TextInputLayout>
+                app:checkedButton="@+id/button_deposit"
+                app:singleSelection="true">
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:hint="金额"
-            android:textColorHint="@android:color/darker_gray">
+                <Button
+                    android:id="@+id/button_deposit"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="存入"
+                    android:textColor="@color/toggle_button_text_color"
+                    app:backgroundTint="@color/toggle_button_background_tint" />
 
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/edit_text_amount"
+                <Button
+                    android:id="@+id/button_withdrawal"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="取出"
+                    android:textColor="@color/toggle_button_text_color"
+                    app:backgroundTint="@color/toggle_button_background_tint" />
+            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+
+            <!-- *** 新增：日期输入框 *** -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="numberDecimal"
-                android:textColor="@android:color/white" />
-        </com.google.android.material.textfield.TextInputLayout>
+                android:layout_marginTop="16dp"
+                android:hint="日期"
+                android:textColorHint="@android:color/darker_gray">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/edit_text_date"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="date"
+                    android:textColor="@android:color/white" />
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:hint="金额"
+                android:textColorHint="@android:color/darker_gray">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/edit_text_amount"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="numberDecimal"
+                    android:textColor="@android:color/white" />
+            </com.google.android.material.textfield.TextInputLayout>
 
 
-        <Button
-            android:id="@+id/button_save"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:layout_marginTop="20dp"
-            android:text="保存" />
-    </LinearLayout>
+            <Button
+                android:id="@+id/button_save"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="20dp"
+                android:text="保存" />
 
+            <!-- *** 新增：删除按钮 *** -->
+            <Button
+                android:id="@+id/button_delete"
+                style="@style/Widget.MaterialComponents.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="8dp"
+                android:text="删除"
+                android:textColor="@color/negative_red"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+        </LinearLayout>
+    </ScrollView>
 </LinearLayout>

@@ -13,6 +13,7 @@ import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.stocktracker.R
+import com.example.stocktracker.data.CashTransaction
 import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.databinding.*
@@ -26,7 +27,7 @@ import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-// --- View Holder Types ---
+// ... (View Holder Types constants remain the same) ...
 private const val ITEM_VIEW_TYPE_HEADER = 0
 private const val ITEM_VIEW_TYPE_PROFIT_LOSS_CHART = 1
 private const val ITEM_VIEW_TYPE_CHART = 2
@@ -43,10 +44,12 @@ class PortfolioAdapter(
     private val onStockClicked: (StockHolding) -> Unit,
     private val onHoldingsClicked: () -> Unit,
     private val onClosedClicked: () -> Unit,
-    private val onCashClicked: () -> Unit
+    private val onCashClicked: () -> Unit,
+    private val onCashItemClicked: (CashTransaction) -> Unit // *** 新增：现金条目点击回调 ***
 ) : ListAdapter<PortfolioListItem, RecyclerView.ViewHolder>(PortfolioDiffCallback()) {
 
     override fun getItemViewType(position: Int): Int {
+// ... (getItemViewType logic remains the same) ...
         return when (getItem(position)) {
             is PortfolioListItem.Header -> ITEM_VIEW_TYPE_HEADER
             is PortfolioListItem.ProfitLossChart -> ITEM_VIEW_TYPE_PROFIT_LOSS_CHART
@@ -62,6 +65,7 @@ class PortfolioAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+// ... (onCreateViewHolder logic remains the same, except for cash transaction) ...
         return when (viewType) {
             ITEM_VIEW_TYPE_HEADER -> HeaderViewHolder.from(parent)
             ITEM_VIEW_TYPE_PROFIT_LOSS_CHART -> ProfitLossChartViewHolder.from(parent)
@@ -78,6 +82,7 @@ class PortfolioAdapter(
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+// ... (onBindViewHolder logic remains the same, except for cash transaction) ...
         when (holder) {
             is HeaderViewHolder -> {
                 val headerItem = getItem(position) as PortfolioListItem.Header
@@ -104,13 +109,15 @@ class PortfolioAdapter(
             is CashHeaderViewHolder -> holder.bind()
             is CashTransactionViewHolder -> {
                 val cashItem = getItem(position) as PortfolioListItem.Cash
-                holder.bind(cashItem.transaction)
+                // *** 修改：传入点击回调 ***
+                holder.bind(cashItem.transaction, onCashItemClicked)
             }
         }
     }
 
     // --- ViewHolders ---
 
+    // ... (HeaderViewHolder, ProfitLossChartViewHolder, ChartViewHolder, StockHeaderViewHolder, StockViewHolder, ClosedPositionHeaderViewHolder, ClosedPositionViewHolder, CashHeaderViewHolder remain the same) ...
     class HeaderViewHolder(private val binding: ListItemPortfolioHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
 
         @SuppressLint("SetTextI18n")
@@ -543,7 +550,15 @@ class PortfolioAdapter(
         private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
         @SuppressLint("SetTextI18n")
-        fun bind(transaction: com.example.stocktracker.data.CashTransaction) {
+        fun bind(transaction: com.example.stocktracker.data.CashTransaction, onCashItemClicked: (CashTransaction) -> Unit) {
+            // *** 新增：设置点击监听器 ***
+            itemView.setOnClickListener {
+                // 只有非股票关联的现金交易（存入/取出）才可以编辑
+                if (transaction.stockTransactionId == null) {
+                    onCashItemClicked(transaction)
+                }
+            }
+
             binding.textViewDate.text = transaction.date.format(dateFormatter)
             //val isDeposit = transaction.type == com.example.stocktracker.data.CashTransactionType.DEPOSIT
 
@@ -608,6 +623,7 @@ class PortfolioAdapter(
 }
 
 // --- DiffUtil Callback ---
+// ... (PortfolioDiffCallback remains the same) ...
 
 class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioListItem>() {
     override fun areItemsTheSame(oldItem: PortfolioListItem, newItem: PortfolioListItem): Boolean {
@@ -618,4 +634,3 @@ class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioListItem>() {
         return oldItem == newItem
     }
 }
-
