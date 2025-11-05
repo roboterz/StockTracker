@@ -25,12 +25,17 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.withContext
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 import java.util.TreeMap
+import java.util.UUID
 import kotlin.math.absoluteValue
 
-// ... (NavigationEvent remain the same) ...
+// ... (NavigationEvent, TimeRange, StockUiState remain the same) ...
 sealed class NavigationEvent {
     object NavigateBack : NavigationEvent()
 }
@@ -74,6 +79,7 @@ data class StockUiState(
 
 
 class StockViewModel(application: Application) : ViewModel() {
+    // ... (property declarations and init block remain the same) ...
     private val appContext = application.applicationContext // *** 新增：获取应用上下文 ***
     private val db = StockDatabase.getDatabase(application)
     private val stockDao = db.stockDao()
@@ -101,6 +107,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     init {
         val holdingsFlow = stockDao.getAllStocksWithTransactions().map { list -> list.map { it.toUIModel() } }
+// ... (init block logic remains the same) ...
         val cashFlow = cashDao.getAllCashTransactions().map { list -> list.map { it.toUIModel() } }
         val nameFlow = portfolioSettingsDao.getPortfolioName().map { it ?: "我的投资组合" } // *** 新增：投资组合名称流 ***
 
@@ -318,6 +325,7 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
+    // ... (Portfolio Chart calculation methods remain the same) ...
     // *** 新增：图表计算相关方法 ***
 
     /**
@@ -691,9 +699,9 @@ class StockViewModel(application: Application) : ViewModel() {
 
 
     /**
+    // ... (deleteTransaction remains the same) ...
      * 删除指定的交易记录，并根据交易类型清理相关的自动生成记录（分红/拆股/合股）。
      */
-// ... (deleteTransaction remains the same) ...
     fun deleteTransaction(transactionId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val stock = _uiState.value.selectedStock
@@ -737,7 +745,96 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
-    // --- 新增：数据库导出/导入功能 ---
+    // *** 新增：CSV 导入功能 ***
+    fun importTransactionsFromCsv(uri: Uri, stockId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+
+
+            val TAG = "importCSV"
+
+            try {
+                _uiState.update { it.copy(isRefreshing = true) }
+
+                // 1. 获取股票信息，用于保存交易
+                val stockData = fetchInitialStockData(stockId)
+                if (stockData == null) {
+                    _toastEvents.emit("导入失败：无法获取 $stockId 的股票信息")
+                    return@launch
+                }
+
+                val stockName = stockData.name
+                val exchangeName = stockData.exchangeName
+                var importedCount = 0
+                var skippedCount = 0
+
+                // 2. 读取文件
+                appContext.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    BufferedReader(InputStreamReader(inputStream)).use { reader ->
+
+                        reader.readLine() // 跳过标题行
+
+                        var line: String? = reader.readLine()
+                        while (line != null) {
+                            val parts = line.split(",").map { it.trim().removeSurrounding("\"") }
+                            if (parts.size < 4) {
+                                Log.w(TAG, "Skipping malformed CSV line: $line")
+                                skippedCount++
+                                line = reader.readLine()
+                                continue
+                            }
+
+                            try {
+                                val date = LocalDate.parse(parts[0], DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                                val type = if (parts[1] == "买入") TransactionType.BUY else TransactionType.SELL
+                                val quantity = parts[2].toDoubleOrNull()
+                                val price = parts[3].toDoubleOrNull()
+                                // 您的 CSV 似乎没有手续费，默认为 0
+                                val fee = 0.0
+
+                                if (quantity != null && price != null) {
+                                    val newTransaction = Transaction(
+                                        id = UUID.randomUUID().toString(),
+                                        date = date,
+                                        type = type,
+                                        quantity = quantity,
+                                        price = price,
+                                        fee = fee
+                                    )
+                                    // 调用内部保存方法
+                                    saveOrUpdateTransactionInternal(newTransaction, stockId, stockId, stockName, exchangeName)
+                                    importedCount++
+                                } else {
+                                    Log.w(TAG, "Skipping line with invalid number: $line")
+                                    skippedCount++
+                                }
+                            } catch (e: DateTimeParseException) {
+                                Log.e(TAG, "Skipping line with invalid date: $line", e)
+                                skippedCount++
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Error parsing line: $line", e)
+                                skippedCount++
+                            }
+                            line = reader.readLine()
+                        }
+                    }
+                }
+
+                _toastEvents.emit("导入完成：成功 $importedCount 条，跳过 $skippedCount 条")
+                // 3. 刷新数据
+                refreshData()
+
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to import CSV", e)
+                _toastEvents.emit("导入失败：${e.message}")
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) }
+            }
+        }
+    }
+    // *** 新增结束 ***
+
+
+    // --- 数据库导出/导入功能 ---
 
 // ... (exportDatabase and importDatabase remain the same) ...
     /**
@@ -802,4 +899,3 @@ class StockViewModelFactory(private val application: Application) : ViewModelPro
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }
-
