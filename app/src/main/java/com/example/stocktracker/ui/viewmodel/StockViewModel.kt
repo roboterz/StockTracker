@@ -37,15 +37,18 @@ import kotlin.math.absoluteValue
 
 // ... (NavigationEvent, TimeRange, StockUiState remain the same) ...
 sealed class NavigationEvent {
+    // ... (existing code) ...
     object NavigateBack : NavigationEvent()
 }
 
 // *** 新增：图表时间范围的枚举 ***
 enum class TimeRange {
+    // ... (existing code) ...
     FIVE_DAY, ONE_MONTH, THREE_MONTH, SIX_MONTH, ONE_YEAR, FIVE_YEAR, ALL
 }
 
 data class StockUiState(
+// ... (existing code) ...
     val holdings: List<StockHolding> = emptyList(),
     val selectedStockId: String? = null,
     val transactionToEditId: String? = null,
@@ -62,18 +65,22 @@ data class StockUiState(
     val portfolioChartData: List<ChartDataPoint> = emptyList()
 ) {
     // *** 新增：图表数据点的数据类 ***
+// ... (existing code) ...
     data class ChartDataPoint(val date: LocalDate, val value: Double)
 
     val selectedStock: StockHolding
+        // ... (existing code) ...
         get() = holdings.find { it.id == selectedStockId }
             ?: closedPositions.find { it.id == selectedStockId } // <-- 修复：同时搜索 closedPositions 列表
             ?: StockHolding.empty
 
     val transactionToEdit: Transaction?
+        // ... (existing code) ...
         get() = selectedStock.transactions.find { it.id == transactionToEditId }
 
     // *** 新增：获取要编辑的现金交易 ***
     val cashTransactionToEdit: CashTransaction?
+        // ... (existing code) ...
         get() = cashTransactions.find { it.id == cashTransactionToEditId }
 }
 
@@ -103,6 +110,9 @@ class StockViewModel(application: Application) : ViewModel() {
     // *** 新增：用于历史价格的缓存 ***
     private val historicalPriceCache = mutableMapOf<String, Map<LocalDate, Double>>()
     private var chartCalculationJob: Job? = null
+
+    private val TAG = "StockViewModel"
+
 
 
     init {
@@ -223,6 +233,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     // ... (refreshData remains mostly the same) ...
     fun refreshData() {
+// ... (existing code) ...
         if (_uiState.value.isRefreshing) return
 
         viewModelScope.launch {
@@ -266,9 +277,17 @@ class StockViewModel(application: Application) : ViewModel() {
                     data.dividendHistory?.forEach { dividendInfo ->
                         val alreadyExists = data.holding.transactions.any { it.type == TransactionType.DIVIDEND && it.date == dividendInfo.date }
                         if (!alreadyExists) {
-                            val sharesOnDate = data.holding.getQuantityOnDate(dividendInfo.date)
-                            if (sharesOnDate > 0) {
-                                val dividendTransaction = Transaction(date = dividendInfo.date, type = TransactionType.DIVIDEND, quantity = sharesOnDate, price = dividendInfo.dividend)
+                            // *** 修复 1：使用支付日的前一天来计算应得股数 ***
+                            val sharesOnDate = data.holding.getQuantityOnDate(dividendInfo.date.minusDays(1))
+
+                            // *** 修复 2：处理多头和空头仓位 (非0即可) ***
+                            if (sharesOnDate.absoluteValue > 1e-9) {
+                                val dividendTransaction = Transaction(
+                                    date = dividendInfo.date,
+                                    type = TransactionType.DIVIDEND,
+                                    quantity = sharesOnDate, // quantity 可以是负数
+                                    price = dividendInfo.dividend
+                                )
                                 dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(dividendTransaction, data.holding.id, "", data.holding.name, data.priceData?.exchangeName) })
                             }
                         }
@@ -332,8 +351,6 @@ class StockViewModel(application: Application) : ViewModel() {
      * 公共方法，由 UI 调用以更新图表。
      */
     fun updatePortfolioChart(timeRange: TimeRange) {
-        val TAG = "StockViewModel"
-
         // 如果已在计算，先取消
         chartCalculationJob?.cancel()
         chartCalculationJob = viewModelScope.launch {
@@ -497,6 +514,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     // ... (fetchInitialStockData, selectStock, prepareNewTransaction, prepareEditTransaction, saveOrUpdateTransaction, saveOrUpdateTransactionInternal, savePortfolioName, addCashTransaction, updateCashTransaction, deleteCashTransaction, deleteTransaction, exportDatabase, importDatabase remain the same) ...
     suspend fun fetchInitialStockData(ticker: String): YahooFinanceScraper.ScrapedData? {
+// ... (existing code) ...
         val upperCaseTicker = ticker.uppercase()
         return withContext(Dispatchers.IO) {
             // 1. 先查数据库获取中文名
@@ -542,20 +560,24 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 
     fun selectStock(stockId: String) {
+// ... (existing code) ...
         _uiState.update { it.copy(selectedStockId = stockId) }
     }
 
     fun prepareNewTransaction(stockId: String? = null) {
+// ... (existing code) ...
         _uiState.update { it.copy(selectedStockId = stockId, transactionToEditId = null) }
     }
 
     fun prepareEditTransaction(transactionId: String) {
+// ... (existing code) ...
         _uiState.update { it.copy(transactionToEditId = transactionId) }
     }
 
 
     // ... (saveOrUpdateTransaction and Internal function remain the same) ...
     fun saveOrUpdateTransaction(
+// ... (existing code) ...
         transaction: Transaction,
         stockId: String?, // Ticker of existing stock being edited, or null if adding new
         newStockIdentifier: String, // Ticker entered by user if adding new
@@ -568,8 +590,9 @@ class StockViewModel(application: Application) : ViewModel() {
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }
-
+    // ... (rest of refreshData remains the same) ...
     private suspend fun saveOrUpdateTransactionInternal(
+// ... (existing code) ...
         transaction: Transaction,
         stockId: String?,
         newStockIdentifier: String,
@@ -607,25 +630,47 @@ class StockViewModel(application: Application) : ViewModel() {
         }
 
         // --- Cash Transaction Logic ---
-        // Ensure cash transaction reflects the correct stock transaction ID and details
+        // *** 关键修复 3：正确处理所有交易类型及其现金影响 ***
+
+        // 1. 拆股没有现金影响
         if (transaction.type == TransactionType.SPLIT) {
-            return // No cash impact for splits
+            return
         }
 
-        val amount = when (transaction.type) {
-            TransactionType.BUY -> -((transaction.quantity * transaction.price) + transaction.fee)
-            TransactionType.SELL -> (transaction.quantity * transaction.price) - transaction.fee
-            TransactionType.DIVIDEND -> transaction.quantity * transaction.price // Dividends are per share, price holds dividend rate
-            else -> 0.0 // Should not happen due to SPLIT check above
+        // 2. 根据交易类型确定金额和现金类型
+        val (finalAmount, finalCashType) = when (transaction.type) {
+            TransactionType.BUY -> {
+                // 买入 -> 负现金流 (BUY)
+                val totalCost = (transaction.quantity * transaction.price) + transaction.fee
+                Pair(totalCost, CashTransactionType.BUY)
+            }
+            TransactionType.SELL -> {
+                // 卖出 -> 正现金流 (SELL)
+                val netProceeds = (transaction.quantity * transaction.price) - transaction.fee
+                Pair(netProceeds, CashTransactionType.SELL)
+            }
+            TransactionType.DIVIDEND -> {
+                // 分红 -> quantity (股数) 可能为负
+                val dividendAmount = transaction.quantity * transaction.price
+                if (dividendAmount >= 0) {
+                    // 收到分红 (多头) -> 正现金流 (DIVIDEND)
+                    Pair(dividendAmount, CashTransactionType.DIVIDEND)
+                } else {
+                    // 支付分红 (空头) -> 负现金流 (WITHDRAWAL)
+                    // 我们将金额存为正数，类型设为 WITHDRAWAL
+                    Pair(dividendAmount.absoluteValue, CashTransactionType.WITHDRAWAL)
+                }
+            }
+            else -> Pair(0.0, CashTransactionType.DEPOSIT) // 不应发生
         }
 
-        if (amount != 0.0) {
-            val cashType = if (amount > 0) CashTransactionType.SELL else CashTransactionType.BUY
+        // 3. 只有当金额不为0时才保存
+        if (finalAmount.absoluteValue > 1e-9) {
             val cashTransaction = CashTransaction(
                 date = transaction.date,
-                type = cashType,
-                amount = kotlin.math.abs(amount), // Amount should always be positive
-                stockTransactionId = transaction.id // Link to the stock transaction
+                type = finalCashType,
+                amount = finalAmount.absoluteValue, // 数据库中的金额始终为正
+                stockTransactionId = transaction.id // 关联到股票交易
             )
             cashDao.insertCashTransaction(cashTransaction.toEntity())
         }
@@ -633,6 +678,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     // *** 新增：保存投资组合名称的函数 ***
     fun savePortfolioName(name: String) {
+// ... (existing code) ...
         viewModelScope.launch(Dispatchers.IO) {
             if (name.isNotBlank()) {
                 portfolioSettingsDao.insert(PortfolioSettingsEntity(name = name))
@@ -647,17 +693,20 @@ class StockViewModel(application: Application) : ViewModel() {
 
     // *** 新增：准备用于编辑的现金交易 ***
     fun prepareEditCashTransaction(transactionId: String) {
+// ... (existing code) ...
         _uiState.update { it.copy(cashTransactionToEditId = transactionId) }
     }
 
     // *** 新增：准备用于添加新现金交易（清除编辑状态） ***
     fun prepareNewCashTransaction() {
+// ... (existing code) ...
         _uiState.update { it.copy(cashTransactionToEditId = null) }
     }
 
     // ... (addCashTransaction remains the same) ...
     // *** 修改：增加 date 参数 ***
     fun addCashTransaction(amount: Double, type: CashTransactionType, date: LocalDate) {
+// ... (existing code) ...
         viewModelScope.launch(Dispatchers.IO) {
             if (amount <= 0) {
                 _toastEvents.emit("金额必须大于0")
@@ -672,6 +721,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     // *** 新增：更新现金交易 ***
     fun updateCashTransaction(transaction: CashTransaction) {
+// ... (existing code) ...
         viewModelScope.launch(Dispatchers.IO) {
             if (transaction.amount <= 0) {
                 _toastEvents.emit("金额必须大于0")
@@ -685,6 +735,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
     // *** 新增：删除现金交易 ***
     fun deleteCashTransaction(transactionId: String) {
+// ... (existing code) ...
         viewModelScope.launch(Dispatchers.IO) {
             // 检查此现金交易是否关联了股票交易
             val transaction = _uiState.value.cashTransactions.find { it.id == transactionId }
@@ -703,6 +754,7 @@ class StockViewModel(application: Application) : ViewModel() {
      * 删除指定的交易记录，并根据交易类型清理相关的自动生成记录（分红/拆股/合股）。
      */
     fun deleteTransaction(transactionId: String) {
+// ... (existing code) ...
         viewModelScope.launch(Dispatchers.IO) {
             val stock = _uiState.value.selectedStock
             val transactionToDelete = stock.transactions.find { it.id == transactionId }
@@ -748,10 +800,6 @@ class StockViewModel(application: Application) : ViewModel() {
     // *** 新增：CSV 导入功能 ***
     fun importTransactionsFromCsv(uri: Uri, stockId: String) {
         viewModelScope.launch(Dispatchers.IO) {
-
-
-            val TAG = "importCSV"
-
             try {
                 _uiState.update { it.copy(isRefreshing = true) }
 
@@ -841,6 +889,7 @@ class StockViewModel(application: Application) : ViewModel() {
      * 将数据库导出到用户指定的 Uri (SAF)。
      */
     fun exportDatabase(targetUri: Uri) {
+// ... (existing code) ...
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // *** 关键修复：在导出之前强制执行 WAL 检查点，确保数据完整性 ***
@@ -864,6 +913,7 @@ class StockViewModel(application: Application) : ViewModel() {
      * 导入后会强制刷新所有数据。
      */
     fun importDatabase(sourceUri: Uri) {
+// ... (existing code) ...
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 _uiState.update { it.copy(isRefreshing = true) } // 导入过程中显示加载状态
@@ -891,6 +941,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
 // ... (StockViewModelFactory remains the same) ...
 class StockViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
+    // ... (existing code) ...
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(StockViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
