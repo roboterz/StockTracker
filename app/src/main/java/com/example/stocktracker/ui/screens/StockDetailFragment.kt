@@ -1,11 +1,14 @@
 package com.example.stocktracker.ui.screens
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -36,7 +39,24 @@ class StockDetailFragment : Fragment() {
         StockViewModelFactory(requireActivity().application)
     }
 
+    // *** 新增：CSV 文件选择器启动器 ***
+    private lateinit var importCsvLauncher: ActivityResultLauncher<Array<String>>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // *** 新增：初始化启动器 ***
+        importCsvLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let {
+                val stockId = viewModel.uiState.value.selectedStockId
+                if (stockId != null) {
+                    viewModel.importTransactionsFromCsv(it, stockId)
+                }
+            }
+        }
+    }
+
     override fun onCreateView(
+// ... (onCreateView remains the same) ...
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
@@ -45,6 +65,7 @@ class StockDetailFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+// ... (onViewCreated window insets handling remains the same) ...
         super.onViewCreated(view, savedInstanceState)
 
         // *** Key Fix: Handle window insets ***
@@ -57,6 +78,7 @@ class StockDetailFragment : Fragment() {
         }
 
         val transactionAdapter = TransactionAdapter { transaction ->
+// ... (adapter setup remains the same) ...
             viewModel.prepareEditTransaction(transaction.id)
             findNavController().navigate(R.id.action_stockDetailFragment_to_addOrEditTransactionFragment)
         }
@@ -64,6 +86,7 @@ class StockDetailFragment : Fragment() {
         binding.recyclerViewTransactions.setHasFixedSize(true) // Optimization
 
         viewLifecycleOwner.lifecycleScope.launch {
+// ... (uiState collection remains the same) ...
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { uiState ->
                     updateUi(uiState.selectedStock)
@@ -86,12 +109,20 @@ class StockDetailFragment : Fragment() {
                     findNavController().navigate(R.id.action_stockDetailFragment_to_addOrEditTransactionFragment)
                     true
                 }
+                // *** 新增：处理 CSV 导入点击 ***
+                R.id.action_import_csv -> {
+                    // *** 关键修复：使用 "*/*" 允许选择所有文件 ***
+                    // 之前的 "text/csv" 过滤器在某些设备上可能过于严格
+                    importCsvLauncher.launch(arrayOf("*/*"))
+                    true
+                }
                 else -> false
             }
         }
     }
 
     @SuppressLint("SetTextI18n")
+// ... (updateUi and updateMetricColor methods remain the same) ...
     private fun updateUi(stock: StockHolding) {
         binding.toolbar.title = stock.name
         // *** Key Fix: Set toolbar subtitle to ticker ***
@@ -144,6 +175,7 @@ class StockDetailFragment : Fragment() {
 
 
     override fun onDestroyView() {
+// ... (onDestroyView remains the same) ...
         super.onDestroyView()
         _binding = null
     }

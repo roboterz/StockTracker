@@ -3,8 +3,9 @@ package com.example.stocktracker.ui.screens
 import com.example.stocktracker.data.CashTransaction
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.ui.viewmodel.StockUiState
+import com.example.stocktracker.ui.viewmodel.TimeRange
 
-// *** 新增：定义资类型枚举 ***
+// ... (AssetType enum remains the same) ...
 enum class AssetType {
     HOLDINGS, CLOSED, CASH
 }
@@ -16,10 +17,16 @@ sealed class PortfolioListItem {
         override val id: String = "header"
     }
 
-    data class ProfitLossChart(val placeholder: Boolean = true) : PortfolioListItem() {
+    // *** 修改：ProfitLossChart 现在携带真实数据 ***
+    data class ProfitLossChart(
+        val chartData: List<StockUiState.ChartDataPoint>,
+        val selectedRange: TimeRange,
+        val isLoading: Boolean
+    ) : PortfolioListItem() {
         override val id: String = "pl_chart"
     }
 
+    // ... (Chart, StockHeader, Stock, ClosedPositionHeader, ClosedPosition, CashHeader, Cash remain the same) ...
     // *** 修改：Chart 项现在包含所选的类型，以便 ViewHolder 更新按钮状态 ***
     data class Chart(val holdings: List<StockHolding>, val selectedType: AssetType) : PortfolioListItem() {
         override val id: String = "chart"
@@ -52,4 +59,3 @@ sealed class PortfolioListItem {
         override val id: String = "cash_${transaction.id}"
     }
 }
-

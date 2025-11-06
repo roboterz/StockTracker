@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -23,9 +24,11 @@ import com.example.stocktracker.ui.components.formatCurrency
 import com.example.stocktracker.ui.screens.AssetType
 import com.example.stocktracker.ui.screens.PortfolioListItem
 import com.example.stocktracker.ui.viewmodel.StockUiState
+import com.example.stocktracker.ui.viewmodel.TimeRange
 import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlin.math.absoluteValue
 
 // ... (View Holder Types constants remain the same) ...
 private const val ITEM_VIEW_TYPE_HEADER = 0
@@ -45,7 +48,8 @@ class PortfolioAdapter(
     private val onHoldingsClicked: () -> Unit,
     private val onClosedClicked: () -> Unit,
     private val onCashClicked: () -> Unit,
-    private val onCashItemClicked: (CashTransaction) -> Unit // *** 新增：现金条目点击回调 ***
+    private val onCashItemClicked: (CashTransaction) -> Unit, // *** 新增：现金条目点击回调 ***
+    private val onTimeRangeSelected: (TimeRange) -> Unit // *** 新增：时间范围选择回调 ***
 ) : ListAdapter<PortfolioListItem, RecyclerView.ViewHolder>(PortfolioDiffCallback()) {
 
     override fun getItemViewType(position: Int): Int {
@@ -65,10 +69,11 @@ class PortfolioAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-// ... (onCreateViewHolder logic remains the same, except for cash transaction) ...
+// ... (onCreateViewHolder logic updated for new callbacks) ...
         return when (viewType) {
             ITEM_VIEW_TYPE_HEADER -> HeaderViewHolder.from(parent)
-            ITEM_VIEW_TYPE_PROFIT_LOSS_CHART -> ProfitLossChartViewHolder.from(parent)
+            // *** 修改：传入 onTimeRangeSelected 回调 ***
+            ITEM_VIEW_TYPE_PROFIT_LOSS_CHART -> ProfitLossChartViewHolder.from(parent, onTimeRangeSelected)
             ITEM_VIEW_TYPE_CHART -> ChartViewHolder.from(parent, onHoldingsClicked, onClosedClicked, onCashClicked)
             // *** 新增 ViewHolder 创建 ***
             ITEM_VIEW_TYPE_STOCK_HEADER -> StockHeaderViewHolder.from(parent)
@@ -82,14 +87,16 @@ class PortfolioAdapter(
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-// ... (onBindViewHolder logic remains the same, except for cash transaction) ...
+// ... (onBindViewHolder logic updated for ProfitLossChart) ...
         when (holder) {
             is HeaderViewHolder -> {
                 val headerItem = getItem(position) as PortfolioListItem.Header
                 holder.bind(headerItem.uiState)
             }
             is ProfitLossChartViewHolder -> {
-                holder.bind()
+                // *** 修改：绑定真实数据 ***
+                val plChartItem = getItem(position) as PortfolioListItem.ProfitLossChart
+                holder.bind(plChartItem.chartData, plChartItem.selectedRange, plChartItem.isLoading)
             }
             is ChartViewHolder -> {
                 val chartItem = getItem(position) as PortfolioListItem.Chart
@@ -117,7 +124,7 @@ class PortfolioAdapter(
 
     // --- ViewHolders ---
 
-    // ... (HeaderViewHolder, ProfitLossChartViewHolder, ChartViewHolder, StockHeaderViewHolder, StockViewHolder, ClosedPositionHeaderViewHolder, ClosedPositionViewHolder, CashHeaderViewHolder remain the same) ...
+    // ... (HeaderViewHolder remains the same) ...
     class HeaderViewHolder(private val binding: ListItemPortfolioHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
 
         @SuppressLint("SetTextI18n")
@@ -179,151 +186,144 @@ class PortfolioAdapter(
         }
     }
 
-    class ProfitLossChartViewHolder(private val binding: ListItemPortfolioPlChartBinding) : RecyclerView.ViewHolder(binding.root) {
+    // *** 彻底重构 ProfitLossChartViewHolder ***
+    class ProfitLossChartViewHolder(
+        private val binding: ListItemPortfolioPlChartBinding,
+        private val onTimeRangeSelected: (TimeRange) -> Unit // 接收回调
+    ) : RecyclerView.ViewHolder(binding.root) {
 
-        private val sampleData: Map<Int, Pair<List<List<Float>>, List<String>>>
+        private val timeRangeButtons: Map<TimeRange, Button>
         private var listenersAreSet = false
-        private val timeRangeButtons: List<Button>
-        private var currentTimeRangeId: Int = R.id.button_1m
+        private val mainLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineBlue)
+        private val djiLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineOrange)
+        private val dateLabels: List<TextView>
+        private val yearMonthFmt = DateTimeFormatter.ofPattern("yyyy-MM")
+        private val monthDayFmt = DateTimeFormatter.ofPattern("MM-dd")
 
         init {
-            timeRangeButtons = listOf(
-                binding.button5d, binding.button1m, binding.button3m, binding.button6m,
-                binding.button1y, binding.button5y, binding.buttonAll
+            timeRangeButtons = mapOf(
+                TimeRange.FIVE_DAY to binding.button5d,
+                TimeRange.ONE_MONTH to binding.button1m,
+                TimeRange.THREE_MONTH to binding.button3m,
+                TimeRange.SIX_MONTH to binding.button6m,
+                TimeRange.ONE_YEAR to binding.button1y,
+                TimeRange.FIVE_YEAR to binding.button5y,
+                TimeRange.ALL to binding.buttonAll
             )
 
-            val today = LocalDate.now()
-            val monthFmt = DateTimeFormatter.ofPattern("MM-dd")
-            val yearFmt = DateTimeFormatter.ofPattern("yyyy-MM")
-            val yearsFmt = DateTimeFormatter.ofPattern("yyyy")
-
-            sampleData = mapOf(
-                R.id.button_1m to (
-                        listOf(
-                            listOf(10f, 15f, 13f, 20f, 18f, 25f, 22f, 19f, 28f, 30f, 26f, 32f, 23f, 25f, 31f, 22f, 18f, 19f, 20f, 23f, 27f, 31f, 35f, 40f, 41f, 42f, 44f, 46f, 35f, 22f),
-                            listOf(12f, 14f, 11f, 18f, 16f, 23f, 20f, 17f, 26f)
-                        ) to
-                                listOf(today.minusMonths(1).format(monthFmt), "", today.minusDays(15).format(monthFmt), "", today.format(monthFmt))
-                        ),
-                R.id.button_5d to (
-                        listOf(
-                            listOf(10f, 12f, 8f, 15f, 14f),
-                            listOf(11f, 11.5f, 9f)
-                        ) to
-                                listOf(today.minusDays(4).format(monthFmt), "", today.minusDays(2).format(monthFmt), "", today.format(monthFmt))
-                        ),
-                R.id.button_3m to (
-                        listOf(
-                            listOf(5f, 8f, 12f, 10f, 18f, 15f, 22f, 25f, 20f, 28f, 30f, 26f),
-                            listOf(7f, 9f, 13f, 11f, 19f, 16f)
-                        ) to
-                                listOf(today.minusMonths(3).format(monthFmt), "", today.minusMonths(1).minusDays(15).format(monthFmt), "", today.format(monthFmt))
-                        ),
-                R.id.button_6m to (
-                        listOf(
-                            listOf(20f, 18f, 15f, 10f, 12f, 18f, 5f, 15f, 25f, 30f, 28f, 26f),
-                            listOf(18f, 16f, 13f, 8f, 10f, 16f)
-                        ) to
-                                listOf(today.minusMonths(6).format(yearFmt), "", today.minusMonths(3).format(yearFmt), "", today.format(yearFmt))
-                        ),
-                R.id.button_1y to (
-                        listOf(
-                            listOf(30f, 35f, 32f, 28f, 25f, 20f, 18f, 15f, 22f, 28f, 30f, 26f),
-                            listOf(28f, 33f, 30f, 26f, 23f, 18f)
-                        ) to
-                                listOf(today.minusYears(1).format(yearFmt), "", today.minusMonths(6).format(yearFmt), "", today.format(yearFmt))
-                        ),
-                R.id.button_5y to (
-                        listOf(
-                            listOf(10f, 20f, 15f, 30f, 25f, 40f, 50f, 45f, 35f, 25f, 30f, 26f),
-                            listOf(12f, 22f, 17f, 32f, 27f, 42f)
-                        ) to
-                                listOf(today.minusYears(5).format(yearsFmt), "", today.minusYears(2).minusMonths(6).format(yearsFmt), "", today.format(yearsFmt))
-                        ),
-                R.id.button_all to (
-                        listOf(
-                            listOf(5f, 10f, 20f, 15f, 30f, 25f, 40f, 50f, 45f, 35f, 25f, 30f, 26f),
-                            listOf(7f, 12f, 22f, 17f, 32f, 27f)
-                        ) to
-                                listOf("开始", "", "", "", "现在")
-                        )
-            )
+            dateLabels = listOf(binding.dateStart, binding.dateMidLeft, binding.dateMid, binding.dateMidRight, binding.dateEnd)
         }
 
-        fun bind() {
+        fun bind(
+            chartData: List<StockUiState.ChartDataPoint>,
+            selectedRange: TimeRange,
+            isLoading: Boolean
+        ) {
             if (!listenersAreSet) {
-                timeRangeButtons.forEach { button ->
-                    button.setOnClickListener { handleTimeRangeClick(it as Button) }
+                timeRangeButtons.forEach { (range, button) ->
+                    button.setOnClickListener {
+                        // 点击按钮时，调用 ViewModel 的回调
+                        onTimeRangeSelected(range)
+                    }
                 }
                 listenersAreSet = true
             }
-            updateTimeRangeButtonTints()
-            updateChart(currentTimeRangeId)
+
+            // 更新按钮的选中状态
+            updateTimeRangeButtonTints(selectedRange)
+
+            // 控制加载指示器
+            binding.plChartProgressBar.isVisible = isLoading
+            binding.plLineChart.isVisible = !isLoading && chartData.isNotEmpty()
+            // (可以添加一个 "无数据" 的 TextView)
+
+            if (!isLoading && chartData.isNotEmpty()) {
+                updateChart(chartData)
+            } else if (!isLoading) {
+                // 清空图表和标签
+                binding.plLineChart.setData(emptyList())
+                updateChartLabels(null, null, selectedRange)
+                updateChartMinMax(emptyList())
+            }
         }
 
-        private fun handleTimeRangeClick(clickedButton: Button) {
-            currentTimeRangeId = clickedButton.id
-            updateTimeRangeButtonTints()
-            updateChart(currentTimeRangeId)
-        }
-
-        private fun updateTimeRangeButtonTints() {
+        private fun updateTimeRangeButtonTints(selectedRange: TimeRange) {
             val selectedColor = ColorStateList.valueOf(Color.parseColor("#2689FE"))
             val defaultColor = ColorStateList.valueOf(Color.TRANSPARENT)
 
-            timeRangeButtons.forEach { button ->
-                button.backgroundTintList = if (button.id == currentTimeRangeId) selectedColor else defaultColor
+            timeRangeButtons.forEach { (range, button) ->
+                button.backgroundTintList = if (range == selectedRange) selectedColor else defaultColor
             }
         }
 
-        private fun updateChart(checkedId: Int) {
-            val (dataSets, dates) = sampleData[checkedId] ?: return
-
-            val mainLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineBlue)
-            val djiLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineOrange)
-
-            val lineDataList = mutableListOf<LineData>()
-            if (dataSets.isNotEmpty()) {
-                lineDataList.add(LineData(dataSets[0], mainLineColor))
-            }
-            if (dataSets.size > 1) {
-                lineDataList.add(LineData(dataSets[1], djiLineColor))
-            }
-
+        private fun updateChart(data: List<StockUiState.ChartDataPoint>) {
+            // 1. 更新折线图
+            // (目前只绘制总盈亏率，未来可以扩展绘制 DJI)
+            val points = data.map { it.value.toFloat() }
+            val lineDataList = listOf(LineData(points, mainLineColor))
             binding.plLineChart.setData(lineDataList)
 
-            val allPoints = dataSets.flatten()
-            if (allPoints.isNotEmpty()) {
-                val maxVal = allPoints.maxOrNull()!!
-                val minVal = allPoints.minOrNull()!!
+            // 2. 更新 Y 轴 (Min/Max/Mid)
+            updateChartMinMax(points)
+
+            // 3. 更新 X 轴 (日期标签)
+            val startDate = data.firstOrNull()?.date
+            val endDate = data.lastOrNull()?.date
+            updateChartLabels(startDate, endDate, timeRangeButtons.entries.find { it.value.backgroundTintList == ColorStateList.valueOf(Color.parseColor("#2689FE")) }?.key ?: TimeRange.ONE_MONTH)
+        }
+
+        private fun updateChartMinMax(points: List<Float>) {
+            if (points.isNotEmpty()) {
+                val maxVal = points.maxOrNull()!!
+                val minVal = points.minOrNull()!!
                 val midVal = (maxVal + minVal) / 2
                 binding.plChartPercentMax.text = String.format("%+.2f%%", maxVal)
                 binding.plChartPercentMid.text = String.format("%+.2f%%", midVal)
                 binding.plChartPercentMin.text = String.format("%+.2f%%", minVal)
+            } else {
+                binding.plChartPercentMax.text = ""
+                binding.plChartPercentMid.text = ""
+                binding.plChartPercentMin.text = ""
             }
-
-            val dateLabels = listOf(binding.dateStart, binding.dateMidLeft, binding.dateMid, binding.dateMidRight, binding.dateEnd)
-            dateLabels.forEachIndexed { index, textView ->
-                if (index < dates.size && dates[index].isNotBlank()) {
-                    textView.text = dates[index]
-                    textView.visibility = View.VISIBLE
-                } else {
-                    textView.visibility = View.INVISIBLE
-                }
-            }
-            if (dates.size > 2 && dates[2].isNotBlank()) binding.dateMid.visibility = View.VISIBLE
         }
 
+        private fun updateChartLabels(startDate: LocalDate?, endDate: LocalDate?, range: TimeRange) {
+            dateLabels.forEach { it.visibility = View.INVISIBLE } // 先全部隐藏
+
+            if (startDate == null || endDate == null) {
+                dateLabels.first().text = "无数据"
+                dateLabels.first().visibility = View.VISIBLE
+                return
+            }
+
+            val formatter = if (range == TimeRange.FIVE_DAY || range == TimeRange.ONE_MONTH || range == TimeRange.THREE_MONTH) {
+                monthDayFmt
+            } else {
+                yearMonthFmt
+            }
+
+            binding.dateStart.text = startDate.format(formatter)
+            binding.dateMid.text = "" // (可以根据需要计算中间日期)
+            binding.dateEnd.text = endDate.format(formatter)
+
+            binding.dateStart.visibility = View.VISIBLE
+            // binding.dateMid.visibility = View.VISIBLE
+            binding.dateEnd.visibility = View.VISIBLE
+        }
+
+
         companion object {
-            fun from(parent: ViewGroup): ProfitLossChartViewHolder {
+            fun from(parent: ViewGroup, onTimeRangeSelected: (TimeRange) -> Unit): ProfitLossChartViewHolder {
                 val layoutInflater = LayoutInflater.from(parent.context)
                 val binding = ListItemPortfolioPlChartBinding.inflate(layoutInflater, parent, false)
-                return ProfitLossChartViewHolder(binding)
+                return ProfitLossChartViewHolder(binding, onTimeRangeSelected)
             }
         }
     }
+    // *** 重构结束 ***
 
     class ChartViewHolder(
+// ... (ChartViewHolder and its companion object remain the same) ...
         private val binding: ListItemPortfolioChartBinding,
         private val onHoldingsClicked: () -> Unit,
         private val onClosedClicked: () -> Unit,
@@ -438,6 +438,7 @@ class PortfolioAdapter(
     }
 
     // --- Stock (Active Holding) ViewHolder ---
+// ... (StockHeaderViewHolder and StockViewHolder remain the same) ...
     class StockHeaderViewHolder(binding: ListItemStockHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind() { /* 静态布局, 无需绑定 */ }
 
@@ -488,6 +489,7 @@ class PortfolioAdapter(
     }
 
     // --- 新增：Closed Position ViewHolders ---
+// ... (ClosedPositionHeaderViewHolder and ClosedPositionViewHolder remain the same) ...
     class ClosedPositionHeaderViewHolder(binding: ListItemClosedPositionHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind() { /* 静态布局, 无需绑定 */ }
 
@@ -534,6 +536,7 @@ class PortfolioAdapter(
     }
 
     // --- 新增：Cash Transaction ViewHolders ---
+// ... (CashHeaderViewHolder and CashTransactionViewHolder remain the same) ...
     class CashHeaderViewHolder(binding: ListItemCashHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind() { /* 静态布局, 无需绑定 */ }
 
@@ -549,7 +552,7 @@ class PortfolioAdapter(
     class CashTransactionViewHolder(private val binding: ListItemCashTransactionBinding) : RecyclerView.ViewHolder(binding.root) {
         private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 
-        @SuppressLint("SetTextI18n")
+        @SuppressLint("SetTextI1G")
         fun bind(transaction: com.example.stocktracker.data.CashTransaction, onCashItemClicked: (CashTransaction) -> Unit) {
             // *** 新增：设置点击监听器 ***
             itemView.setOnClickListener {
@@ -634,3 +637,4 @@ class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioListItem>() {
         return oldItem == newItem
     }
 }
+

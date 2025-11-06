@@ -6,4 +6,10 @@
         android:icon="@drawable/baseline_add_24"
         android:title="添加交易"
         app:showAsAction="ifRoom" />
+
+    <!-- *** 新增：导入 CSV 菜单项 *** -->
+    <item
+        android:id="@+id/action_import_csv"
+        android:title="导入 CSV 交易"
+        app:showAsAction="never" />
 </menu>
