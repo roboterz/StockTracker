@@ -2,6 +2,7 @@ package com.example.stocktracker.data
 
 import java.time.LocalDate
 import java.util.*
+import kotlin.math.absoluteValue
 
 // --- UI Data Models ---
 
@@ -48,14 +49,38 @@ data class StockHolding(
         performFifoCalculations()
     }
 
-    val totalQuantity: Double get() = fifoCalculations.finalQuantity
+    // *** 新增：单独计算总数量的逻辑 ***
+    private val simpleTotalQuantity: Double by lazy {
+        var quantity = 0.0
+        transactions
+            .sortedBy { it.date }
+            .forEach {
+                when (it.type) {
+                    TransactionType.BUY -> quantity += it.quantity
+                    TransactionType.SELL -> quantity -= it.quantity
+                    TransactionType.SPLIT -> {
+                        // 只有在持有数量不为0时才应用拆股/合股
+                        if (quantity.absoluteValue > 1e-9) { // 使用容差值比较
+                            val ratio = it.quantity / it.price
+                            quantity *= ratio
+                        }
+                    }
+                    else -> { /* Do nothing */ }
+                }
+            }
+        quantity
+    }
+
+    // *** 关键修复：totalQuantity 现在使用 simpleTotalQuantity ***
+    val totalQuantity: Double get() = simpleTotalQuantity
+    // val totalQuantity: Double get() = fifoCalculations.finalQuantity // 旧的错误代码
 
     // *** 修复后的 totalCost：等于未平仓买入的原始总成本（FIFO）***
     // 不再进行利润抵消。清仓后，如果数量为0，则成本为0。
     val totalCost: Double get() = if (totalQuantity > 0) {
         fifoCalculations.totalCost // 使用未调整的剩余成本
     } else {
-        0.0
+        0.0 // 如果是空仓或空头仓位，持仓成本为0
     }
 
     val totalSoldValue: Double get() = fifoCalculations.totalSoldValue
@@ -64,7 +89,12 @@ data class StockHolding(
     val totalCostOfAllBuys: Double get() = fifoCalculations.totalCostOfAllBuys
 
     // holdingPL：基于实际持仓成本计算（无利润抵消）
-    val holdingPL: Double get() = if (totalQuantity > 0) marketValue - totalCost else 0.0
+    // *** 修复：如果是空头仓位 (totalQuantity < 0)，持仓盈亏也需要计算 ***
+    val holdingPL: Double get() = when {
+        totalQuantity > 1e-9 -> marketValue - totalCost // 多头 (使用容差)
+        totalQuantity < -1e-9 -> marketValue + fifoCalculations.totalCostOfShorts // 空头 (使用容差)
+        else -> 0.0 // 平仓
+    }
 
     // costBasis：实际持仓成本 / 数量
     val costBasis: Double get() = if (totalQuantity > 0) totalCost / totalQuantity else 0.0
@@ -101,8 +131,10 @@ data class StockHolding(
                     TransactionType.BUY -> quantity += it.quantity
                     TransactionType.SELL -> quantity -= it.quantity
                     TransactionType.SPLIT -> {
-                        val ratio = it.quantity / it.price
-                        quantity *= ratio
+                        if (quantity.absoluteValue > 1e-9) { // 使用容差值比较
+                            val ratio = it.quantity / it.price
+                            quantity *= ratio
+                        }
                     }
                     else -> { /* Do nothing */
                     }
@@ -113,11 +145,12 @@ data class StockHolding(
 
 
     private data class FifoResult(
-        val finalQuantity: Double,
+        val finalQuantity: Double, // FIFO 剩余的多头数量
         val totalCost: Double, // 未平仓买入的**未调整**总成本
         val totalSoldValue: Double,
         val totalRealizedProfit: Double, // 总已实现利润
-        val totalCostOfAllBuys: Double // 所有买入的总成本 (用于计算总回报率基数)
+        val totalCostOfAllBuys: Double, // 所有买入的总成本 (用于计算总回报率基数)
+        val totalCostOfShorts: Double // *** 新增：空头仓位的成本 ***
     )
 
     private fun performFifoCalculations(): FifoResult {
@@ -127,38 +160,116 @@ data class StockHolding(
         var totalRealizedProfit = 0.0
         var totalCostOfAllBuys = 0.0 // 新增：所有买入的总成本（包括已平仓部分）
 
+        // *** 新增：用于处理空头仓位的变量 ***
+        val remainingShorts = mutableListOf<Transaction>()
+        var totalCostOfShorts = 0.0 // 空头仓位的总"成本"（即卖出总收入）
+        var netQuantity = 0.0 // 跟踪净数量
+
+        // *** 关键修复：定义一个 Epsilon (容差值) ***
+        val Epsilon = 1e-9
+
         for (t in sortedTransactions) {
+            // *** 修复：拆股逻辑应在买卖逻辑之前应用到现有仓位 ***
+            if (t.type == TransactionType.SPLIT) {
+                val ratio = t.quantity / t.price
+
+                // 调整多头
+                val adjustedBuys = remainingBuys.map { buy ->
+                    buy.copy(
+                        quantity = buy.quantity * ratio,
+                        price = buy.price / ratio
+                    )
+                }
+                remainingBuys.clear()
+                remainingBuys.addAll(adjustedBuys)
+
+                // 调整空头
+                val adjustedShorts = remainingShorts.map { shortSell ->
+                    shortSell.copy(
+                        quantity = shortSell.quantity * ratio,
+                        price = shortSell.price / ratio
+                    )
+                }
+                remainingShorts.clear()
+                remainingShorts.addAll(adjustedShorts)
+
+                // 调整净数量
+                netQuantity *= ratio
+
+                continue // 处理完拆股，跳过本轮循环
+            }
+
+            // 累加净数量（仅买卖）
+            val quantityChange = when (t.type) {
+                TransactionType.BUY -> t.quantity
+                TransactionType.SELL -> -t.quantity
+                else -> 0.0
+            }
+            netQuantity += quantityChange
+
+
             when (t.type) {
                 TransactionType.BUY -> {
-                    // 计算含费用的成本价，并将费用于该笔交易平摊掉
                     val totalBuyCost = t.quantity * t.price + t.fee
                     totalCostOfAllBuys += totalBuyCost // 累加所有买入成本
+                    val costPriceWithFee = if (t.quantity > Epsilon) totalBuyCost / t.quantity else 0.0
+                    var buyQuantity = t.quantity
 
-                    val costPriceWithFee = totalBuyCost / t.quantity
+                    // --- 逻辑修改：买入时，优先平掉空头仓位 ---
+                    val iterator = remainingShorts.iterator()
+                    while (iterator.hasNext() && buyQuantity > Epsilon) {
+                        val shortSell = iterator.next()
+                        val quantityToMatch = minOf(shortSell.quantity, buyQuantity)
 
-                    // 创建一个新交易对象，其 price 字段现在存储的是含费用的成本价，且 fee 设为 0
-                    val adjustedBuy = t.copy(
-                        price = costPriceWithFee,
-                        fee = 0.0
-                    )
-                    remainingBuys.add(adjustedBuy)
+                        // 卖出时的收入（含费用）
+                        val proceedsFromShort = quantityToMatch * shortSell.price
+                        // 买入平仓的成本 (使用当前买入价)
+                        val costToClose = quantityToMatch * costPriceWithFee
+
+                        totalRealizedProfit += (proceedsFromShort - costToClose)
+
+                        if (shortSell.quantity - buyQuantity < Epsilon) {
+                            buyQuantity -= shortSell.quantity
+                            iterator.remove() // 该空头仓位被完全平仓
+                        } else {
+                            // 空头仓位被部分平仓
+                            val updatedShort = shortSell.copy(quantity = shortSell.quantity - buyQuantity)
+                            val index = remainingShorts.indexOf(shortSell)
+                            if (index != -1) remainingShorts[index] = updatedShort
+                            buyQuantity = 0.0
+                        }
+                    }
+                    // --- 结束空头平仓逻辑 ---
+
+                    // 如果平仓后仍有剩余买入数量，计入多头仓位
+                    if (buyQuantity > Epsilon) {
+                        val adjustedBuy = t.copy(
+                            quantity = buyQuantity, // 可能是剩余的数量
+                            price = costPriceWithFee, // 含费用的成本价
+                            fee = 0.0
+                        )
+                        remainingBuys.add(adjustedBuy)
+                    }
                 }
                 TransactionType.SELL -> {
                     var sellQuantity = t.quantity
+                    // 卖出时的净收入（已减手续费）
                     val sellNetProceeds = t.quantity * t.price - t.fee
                     totalSoldValue += sellNetProceeds
+                    val pricePerShareWithFee = if (t.quantity > Epsilon) sellNetProceeds / t.quantity else 0.0 // 卖出时的净单价
 
-                    var costOfGoodsSold = 0.0
-
+                    // --- 逻辑修改：卖出时，优先平掉多头仓位 ---
                     val iterator = remainingBuys.iterator()
-                    while (iterator.hasNext() && sellQuantity > 0) {
+                    while (iterator.hasNext() && sellQuantity > Epsilon) {
                         val buy = iterator.next()
                         val quantityToMatch = minOf(buy.quantity, sellQuantity)
 
-                        // COGS based on FIFO: quantity matched * adjusted cost price
-                        costOfGoodsSold += quantityToMatch * buy.price
+                        // 卖出平多仓的已实现利润
+                        val proceedsFromSale = quantityToMatch * pricePerShareWithFee // 卖出收入
+                        val costOfGoodsSold = quantityToMatch * buy.price // 买入成本
+                        totalRealizedProfit += (proceedsFromSale - costOfGoodsSold)
 
-                        if (buy.quantity <= sellQuantity) {
+                        if (buy.quantity - sellQuantity < Epsilon) {
                             sellQuantity -= buy.quantity
                             iterator.remove() // 整笔买入平仓
                         } else {
@@ -170,36 +281,46 @@ data class StockHolding(
                             sellQuantity = 0.0
                         }
                     }
-                    // 计算并累加已实现利润 (收入 - 成本)
-                    val realizedProfit = sellNetProceeds - costOfGoodsSold
-                    totalRealizedProfit += realizedProfit
+                    // --- 结束多头平仓逻辑 ---
+
+                    // 如果平仓后仍有剩余卖出数量，计入空头仓位
+                    if (sellQuantity > Epsilon) {
+                        val adjustedShort = t.copy(
+                            quantity = sellQuantity, // 剩余的卖出数量
+                            price = pricePerShareWithFee, // 含费用的净收入单价
+                            fee = 0.0
+                        )
+                        remainingShorts.add(adjustedShort)
+                    }
                 }
                 TransactionType.SPLIT -> {
-                    val ratio = t.quantity / t.price
-                    val adjustedBuys = remainingBuys.map { buy ->
-                        // 调整数量和含费用的成本价
-                        buy.copy(
-                            quantity = buy.quantity * ratio,
-                            price = buy.price / ratio
-                        )
-                    }
-                    remainingBuys.clear()
-                    remainingBuys.addAll(adjustedBuys)
+                    // 逻辑已移到循环顶部
                 }
                 else -> { /* Ignore DIVIDEND */
                 }
             }
         }
 
-        val finalQuantity = remainingBuys.sumOf { it.quantity }
+        // *** 修复：finalQuantity 应该只代表多头数量 ***
+        val finalLongQuantity = remainingBuys.sumOf { it.quantity }
         // 未调整的剩余持仓总成本 (在进行利润抵消前)
         val unadjustedTotalCost = remainingBuys.sumOf { it.quantity * it.price }
 
-        return FifoResult(finalQuantity, unadjustedTotalCost, totalSoldValue, totalRealizedProfit, totalCostOfAllBuys)
+        // *** 新增：计算空头仓位成本 ***
+        totalCostOfShorts = remainingShorts.sumOf { it.quantity * it.price }
+
+
+        return FifoResult(
+            finalLongQuantity, // 仅多头数量
+            unadjustedTotalCost,
+            totalSoldValue,
+            totalRealizedProfit,
+            totalCostOfAllBuys,
+            totalCostOfShorts // 空头成本（总收入）
+        )
     }
 
     companion object {
         val empty = StockHolding("", "", "", 0.0, emptyList())
     }
 }
-
