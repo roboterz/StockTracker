@@ -77,6 +77,13 @@ class StockDetailFragment : Fragment() {
             insets
         }
 
+        // *** 新增：设置下拉刷新监听器 ***
+        binding.swipeRefreshLayoutDetail.setOnRefreshListener {
+            // 调用 ViewModel 的刷新方法
+            // 这将刷新所有持仓，包括当前的，并更新 isRefreshing 状态
+            viewModel.refreshData()
+        }
+
         val transactionAdapter = TransactionAdapter { transaction ->
 // ... (adapter setup remains the same) ...
             viewModel.prepareEditTransaction(transaction.id)
@@ -84,6 +91,8 @@ class StockDetailFragment : Fragment() {
         }
         binding.recyclerViewTransactions.adapter = transactionAdapter
         binding.recyclerViewTransactions.setHasFixedSize(true) // Optimization
+        // *** 关键：禁用 RecyclerView 的嵌套滚动，因为我们在 XML 中设置了 ***
+        // (已经在 XML 中通过 android:nestedScrollingEnabled="false" 完成)
 
         viewLifecycleOwner.lifecycleScope.launch {
 // ... (uiState collection remains the same) ...
@@ -91,6 +100,9 @@ class StockDetailFragment : Fragment() {
                 viewModel.uiState.collect { uiState ->
                     updateUi(uiState.selectedStock)
                     transactionAdapter.submitList(uiState.selectedStock.transactions.sortedByDescending { it.date })
+
+                    // *** 新增：根据 ViewModel 状态更新刷新指示器 ***
+                    binding.swipeRefreshLayoutDetail.isRefreshing = uiState.isRefreshing
                 }
             }
         }
@@ -99,6 +111,7 @@ class StockDetailFragment : Fragment() {
     }
 
     private fun setupToolbar() {
+// ... (setupToolbar remains the same) ...
         binding.toolbar.setNavigationOnClickListener {
             findNavController().popBackStack()
         }
