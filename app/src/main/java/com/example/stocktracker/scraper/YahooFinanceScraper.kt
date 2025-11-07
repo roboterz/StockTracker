@@ -206,6 +206,8 @@ object YahooFinanceScraper {
             "FRA" -> "FRA" // Frankfurt
             "PAR" -> "Euronext" // Paris
             "HKG" -> "HKG" // Hong Kong
+            "BTS" -> "BATS" // BTS
+            "BSE" -> "BSE" // Bombay
             "" -> ""
             else -> code // 如果不认识，则默认返回原始代码
         }
