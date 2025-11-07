@@ -22,7 +22,7 @@
         android:id="@+id/text_view_type"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
+        android:layout_weight="0.8"
         tools:text="卖出"
         tools:textColor="@color/negative_red" />
 
@@ -30,7 +30,7 @@
         android:id="@+id/text_view_quantity"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_weight="1"
+        android:layout_weight="0.8"
         android:gravity="end"
         android:textColor="@android:color/white"
         tools:text="5" />

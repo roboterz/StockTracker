@@ -22,7 +22,8 @@
         tools:subtitle="MARA NASDAQ"
         tools:title="MARA Holdings Inc" />
 
-    <!-- 包括标题布局 -->
+    <!-- *** 移除 NestedScrollView *** -->
+    <!-- *** 头部信息现在是静态的，位于列表上方 *** -->
     <include
         android:id="@+id/header"
         layout="@layout/layout_detail_header" />
@@ -38,13 +39,13 @@
         android:textSize="17sp"
         android:textStyle="bold" />
 
-    <!-- *** 新增的列表标题行 *** -->
+    <!-- *** 列表标题行 *** -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
-        android:layout_marginTop="4dp"
         android:paddingVertical="7dp">
 
         <TextView
@@ -54,21 +55,24 @@
             android:text="日期"
             android:textColor="#CCAAAAAA"
             android:textSize="12sp" />
+
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_weight="0.8"
             android:text="类型"
             android:textColor="#CCAAAAAA"
             android:textSize="12sp" />
+
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
+            android:layout_weight="0.8"
             android:gravity="end"
             android:text="数量"
             android:textColor="#CCAAAAAA"
             android:textSize="12sp" />
+
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
@@ -85,11 +89,21 @@
         android:layout_marginHorizontal="16dp"
         android:background="#22FFFFFF" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_view_transactions"
+    <!-- *** SwipeRefreshLayout 现在只包裹 RecyclerView *** -->
+    <!-- *** 修改：高度设为 0dp，权重为 1，以填充剩余空间 *** -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh_layout_detail"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        tools:listitem="@layout/list_item_transaction" />
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view_transactions"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:listitem="@layout/list_item_transaction" /> <!-- *** 移除 nestedScrollingEnabled *** -->
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 </LinearLayout>
