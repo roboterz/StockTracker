@@ -22,98 +22,87 @@
         tools:subtitle="MARA NASDAQ"
         tools:title="MARA Holdings Inc" />
 
-    <!-- *** 新增：SwipeRefreshLayout 包裹滚动内容 *** -->
+    <!-- *** 移除 NestedScrollView *** -->
+    <!-- *** 头部信息现在是静态的，位于列表上方 *** -->
+    <include
+        android:id="@+id/header"
+        layout="@layout/layout_detail_header" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="8dp"
+        android:text="历史记录"
+        android:textColor="@android:color/white"
+        android:textSize="17sp"
+        android:textStyle="bold" />
+
+    <!-- *** 列表标题行 *** -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="7dp">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:text="日期"
+            android:textColor="#CCAAAAAA"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="类型"
+            android:textColor="#CCAAAAAA"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:text="数量"
+            android:textColor="#CCAAAAAA"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1.5"
+            android:gravity="end"
+            android:text="价格/金额"
+            android:textColor="#CCAAAAAA"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:layout_marginHorizontal="16dp"
+        android:background="#22FFFFFF" />
+
+    <!-- *** SwipeRefreshLayout 现在只包裹 RecyclerView *** -->
+    <!-- *** 修改：高度设为 0dp，权重为 1，以填充剩余空间 *** -->
     <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
         android:id="@+id/swipe_refresh_layout_detail"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
-        <!-- *** 新增：NestedScrollView 用于滚动 Header 和 RecyclerView *** -->
-        <androidx.core.widget.NestedScrollView
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view_transactions"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:fillViewport="true">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:descendantFocusability="blocksDescendants"> <!-- 防止 RV 自动获取焦点 -->
-
-                <!-- 包括标题布局 -->
-                <include
-                    android:id="@+id/header"
-                    layout="@layout/layout_detail_header" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="16dp"
-                    android:layout_marginTop="24dp"
-                    android:layout_marginBottom="8dp"
-                    android:text="历史记录"
-                    android:textColor="@android:color/white"
-                    android:textSize="17sp"
-                    android:textStyle="bold" />
-
-                <!-- *** 新增的列表标题行 *** -->
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:paddingHorizontal="16dp"
-                    android:layout_marginTop="4dp"
-                    android:paddingVertical="7dp">
-
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1.5"
-                        android:text="日期"
-                        android:textColor="#CCAAAAAA"
-                        android:textSize="12sp" />
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="类型"
-                        android:textColor="#CCAAAAAA"
-                        android:textSize="12sp" />
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:gravity="end"
-                        android:text="数量"
-                        android:textColor="#CCAAAAAA"
-                        android:textSize="12sp" />
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1.5"
-                        android:gravity="end"
-                        android:text="价格/金额"
-                        android:textColor="#CCAAAAAA"
-                        android:textSize="12sp" />
-                </LinearLayout>
-
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="0.5dp"
-                    android:layout_marginHorizontal="16dp"
-                    android:background="#22FFFFFF" />
-
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/recycler_view_transactions"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-                    tools:listitem="@layout/list_item_transaction"
-                    android:nestedScrollingEnabled="false" /> <!-- *** 禁用嵌套滚动 *** -->
-
-            </LinearLayout>
-
-        </androidx.core.widget.NestedScrollView>
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:listitem="@layout/list_item_transaction" /> <!-- *** 移除 nestedScrollingEnabled *** -->
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
