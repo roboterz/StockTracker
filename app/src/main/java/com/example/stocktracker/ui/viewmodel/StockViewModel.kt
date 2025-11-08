@@ -122,7 +122,16 @@ class StockViewModel(application: Application) : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             combine(holdingsFlow, cashFlow, _priceDataFlow, nameFlow) { holdingsFromDb, cashTransactions, priceDataMap, portfolioName ->
                 val cashBalance = cashTransactions.sumOf {
-                    if (it.type == CashTransactionType.DEPOSIT || it.type == CashTransactionType.SELL || it.type == CashTransactionType.DIVIDEND) it.amount else -it.amount
+                    when (it.type) {
+                        CashTransactionType.DEPOSIT,
+                        CashTransactionType.SELL,
+                        CashTransactionType.DIVIDEND -> it.amount // 存入、卖出、分红、(脏数据 SPLIT) 增加现金
+
+                        CashTransactionType.WITHDRAWAL,
+                        CashTransactionType.BUY -> -it.amount // 取出、买入 减少现金
+
+                        CashTransactionType.SPLIT -> 0.0
+                    }
                 }
 
                 // ... (holdings calculation logic remains the same) ...
