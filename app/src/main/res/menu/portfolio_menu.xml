@@ -9,7 +9,7 @@
     <item
         android:id="@+id/action_add_cash"
         android:icon="@drawable/ic_cash"
-        android:title="添加现金"
+        android:title="现金存取"
         app:showAsAction="collapseActionView" />
     <!-- 新增：数据库管理菜单项 -->
     <item
