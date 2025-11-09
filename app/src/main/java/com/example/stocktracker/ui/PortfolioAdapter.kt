@@ -129,21 +129,35 @@ class PortfolioAdapter(
 
         @SuppressLint("SetTextI18n")
         fun bind(uiState: StockUiState) {
-            val holdings = uiState.holdings
+            val holdings = uiState.holdings // 活动持仓
+            val closedPositions = uiState.closedPositions // 已平仓
+
             val totalMarketValue = holdings.sumOf { it.marketValue }
             val totalDailyPL = holdings.sumOf { it.dailyPL }
             val totalHoldingPL = holdings.sumOf { it.holdingPL }
-            val totalPL = holdings.sumOf { it.totalPL }
+
+            // *** 修复：总盈亏 = 活动持仓总盈亏 + 已平仓总盈亏 ***
+            val activeTotalPL = holdings.sumOf { it.totalPL }
+            val closedTotalPL = closedPositions.sumOf { it.totalPL }
+            val totalPL = activeTotalPL + closedTotalPL
+            // *** 修复结束 ***
+
             val cash = uiState.cashBalance
 
-            // Re-calculate the cost basis for percentage calculation for the whole portfolio
-            // Total cost is the sum of totalCost of all holdings.
+            // 持仓盈亏百分比的基数 = 活动持仓的总成本
             val totalCost = holdings.sumOf { it.totalCost }
 
-            // Using totalMarketValue + (totalCost - totalSoldValue) is wrong for percentage base.
-            // totalCost is now the total cost of remaining shares.
+            // *** 修复：总盈亏百分比的基数 = 历史上所有买入的总成本 (包括已平仓的) ***
+            val totalCostOfAllBuysActive = holdings.sumOf { it.totalCostOfAllBuys }
+            val totalCostOfAllBuysClosed = closedPositions.sumOf { it.totalCostOfAllBuys }
+            val totalCostOfAllBuys = totalCostOfAllBuysActive + totalCostOfAllBuysClosed
+            // *** 修复结束 ***
+
             val totalDailyPLPercent = if (totalMarketValue - totalDailyPL != 0.0) (totalDailyPL / (totalMarketValue - totalDailyPL)) * 100 else 0.0
-            val totalHoldingPLPercent = if (totalCost > 0) (totalHoldingPL / totalCost) * 100 else 0.0 // Corrected calculation base
+            val totalHoldingPLPercent = if (totalCost > 0) (totalHoldingPL / totalCost) * 100 else 0.0
+
+            // *** 修复：使用新的基数计算总盈亏百分比 ***
+            //val totalPLPercent = if (totalCostOfAllBuys > 0) (totalPL / totalCostOfAllBuys) * 100 else 0.0
             val totalPLPercent = if (totalCost > 0) (totalPL / totalCost) * 100 else 0.0 // Corrected calculation base
 
             binding.header.textViewMarketValue.text = formatCurrency(totalMarketValue, false)
@@ -159,8 +173,8 @@ class PortfolioAdapter(
             updateMetricColor(binding.header.metricHoldingPl.metricValue, binding.header.metricHoldingPl.metricPercent, totalHoldingPL)
 
             binding.header.metricTotalPl.metricLabel.text = "总盈亏"
-            binding.header.metricTotalPl.metricValue.text = formatCurrency(totalPL, true)
-            binding.header.metricTotalPl.metricPercent.text = "${formatCurrency(totalPLPercent, true)}%"
+            binding.header.metricTotalPl.metricValue.text = formatCurrency(totalPL, true) // 绑定修复后的 totalPL
+            binding.header.metricTotalPl.metricPercent.text = "${formatCurrency(totalPLPercent, true)}%" // 绑定修复后的 totalPLPercent
             updateMetricColor(binding.header.metricTotalPl.metricValue, binding.header.metricTotalPl.metricPercent, totalPL)
 
             binding.header.metricCash.metricLabel.text = "现金"
@@ -637,4 +651,3 @@ class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioListItem>() {
         return oldItem == newItem
     }
 }
-
