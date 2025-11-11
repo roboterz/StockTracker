@@ -166,7 +166,7 @@ class StockDetailFragment : Fragment() {
         binding.header.layoutInfoCurrentPrice.infoValue.text = stock.currentPrice.toString()
 
         binding.header.layoutInfoCostBasis.infoLabel.text = "成本价"
-        binding.header.layoutInfoCostBasis.infoValue.text = DecimalFormat("#.####").format( stock.costBasis).toString()
+        binding.header.layoutInfoCostBasis.infoValue.text = DecimalFormat("#.##").format( stock.costBasis).toString()
 
         binding.header.layoutInfoQuantity.infoLabel.text = "数量"
         binding.header.layoutInfoQuantity.infoValue.text = DecimalFormat("#.##").format(stock.totalQuantity).toString()
