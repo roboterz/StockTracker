@@ -5,7 +5,7 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:paddingHorizontal="16dp"
-    android:paddingVertical="14dp"
+    android:paddingVertical="10dp"
     android:gravity="center_vertical"
     android:background="?android:attr/selectableItemBackground">
 
@@ -23,6 +23,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="0.8"
+        android:textSize="15sp"
         tools:text="卖出"
         tools:textColor="@color/negative_red" />
 
@@ -32,6 +33,7 @@
         android:layout_height="wrap_content"
         android:layout_weight="0.8"
         android:gravity="end"
+        android:textSize="15sp"
         android:textColor="@android:color/white"
         tools:text="5" />
 
@@ -40,6 +42,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1.5"
+        android:layout_marginTop="7dp"
         android:gravity="end"
         android:orientation="vertical">
 
