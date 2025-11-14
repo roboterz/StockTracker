@@ -93,10 +93,10 @@ class AddOrEditTransactionFragment : Fragment() {
             binding.textViewCurrentPrice.text = "最新价: ${stock.currentPrice}"
         }
 
-        if (isEditMode && transaction != null) {
+        if (isEditMode) {
             binding.buttonToggleGroup.check(if (transaction.type == TransactionType.BUY) binding.buttonBuy.id else binding.buttonSell.id)
             binding.editTextPrice.setText(transaction.price.toString())
-            binding.editTextQuantity.setText(transaction.quantity.toString())
+            binding.editTextQuantity.setText(transaction.quantity.toInt().toString())
             binding.editTextFee.setText(transaction.fee.toString())
             // *** 修改：设置日期变量并更新文本 ***
             selectedDate = transaction.date
