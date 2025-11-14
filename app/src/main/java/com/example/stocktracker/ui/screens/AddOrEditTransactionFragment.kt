@@ -1,5 +1,6 @@
 package com.example.stocktracker.ui.screens
 
+import android.app.DatePickerDialog
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -25,6 +26,7 @@ import com.example.stocktracker.ui.viewmodel.StockViewModelFactory
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 
@@ -38,6 +40,11 @@ class AddOrEditTransactionFragment : Fragment() {
     }
 
     private var fetchedExchangeName: String? = null // *** 新增：用于存储获取到的交易所代码 ***
+
+    // *** 新增：用于存储选择的日期 ***
+    private var selectedDate: LocalDate = LocalDate.now()
+    private val dateFormatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
+
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -70,7 +77,7 @@ class AddOrEditTransactionFragment : Fragment() {
         val stock = viewModel.uiState.value.selectedStock
         val isEditMode = transaction != null
         val isNewStockMode = stock.id.isEmpty() && !isEditMode
-        val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
+        // val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd") // 已移至类级别
 
         binding.toolbar.title = if (isEditMode) "编辑交易" else "添加交易"
         binding.toolbar.setNavigationOnClickListener { findNavController().popBackStack() }
@@ -91,17 +98,26 @@ class AddOrEditTransactionFragment : Fragment() {
             binding.editTextPrice.setText(transaction.price.toString())
             binding.editTextQuantity.setText(transaction.quantity.toString())
             binding.editTextFee.setText(transaction.fee.toString())
-            binding.editTextDate.setText(transaction.date.format(formatter))
+            // *** 修改：设置日期变量并更新文本 ***
+            selectedDate = transaction.date
+            binding.editTextDate.setText(selectedDate.format(dateFormatter))
         } else {
             binding.buttonToggleGroup.check(binding.buttonBuy.id)
             if (!isNewStockMode) {
                 binding.editTextPrice.setText(stock.currentPrice.toString())
             }
-            binding.editTextDate.setText(LocalDate.now().format(formatter))
+            // *** 修改：设置日期变量并更新文本 ***
+            selectedDate = LocalDate.now()
+            binding.editTextDate.setText(selectedDate.format(dateFormatter))
         }
     }
 
     private fun setupListeners(transactionToEdit: Transaction?) {
+        // *** 新增：为日期输入框添加点击监听器 ***
+        binding.editTextDate.setOnClickListener {
+            showDatePickerDialog()
+        }
+
         // 自动获取股票名称和价格的逻辑
         binding.editTextStockId.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) {
@@ -137,12 +153,13 @@ class AddOrEditTransactionFragment : Fragment() {
         binding.buttonSave.setOnClickListener {
             val stock = viewModel.uiState.value.selectedStock
             val isNewStockMode = stock.id.isEmpty() && transactionToEdit == null
-            val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd")
+            // val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd") // 已移至类级别
 
             val price = binding.editTextPrice.text.toString().toDoubleOrNull()
             val quantity = binding.editTextQuantity.text.toString().toDoubleOrNull()
             val fee = binding.editTextFee.text.toString().toDoubleOrNull() ?: 0.0
-            val dateStr = binding.editTextDate.text.toString()
+            // *** 修改：从 selectedDate 获取日期 ***
+            val dateStr = selectedDate.format(dateFormatter) // 确保 dateStr 非空
 
             val newStockId = if (isNewStockMode) binding.editTextStockId.text.toString() else ""
             val stockName = if (isNewStockMode) binding.editTextStockName.text.toString() else stock.name
@@ -155,7 +172,8 @@ class AddOrEditTransactionFragment : Fragment() {
 
             val transaction = Transaction(
                 id = transactionToEdit?.id ?: UUID.randomUUID().toString(),
-                date = LocalDate.parse(dateStr, formatter),
+                // *** 修改：使用 selectedDate 变量 ***
+                date = selectedDate,
                 type = if (binding.buttonToggleGroup.checkedButtonId == binding.buttonBuy.id) TransactionType.BUY else TransactionType.SELL,
                 quantity = quantity,
                 price = price,
@@ -186,6 +204,34 @@ class AddOrEditTransactionFragment : Fragment() {
             }
         }
     }
+
+    // *** 新增：显示日期选择器的方法 ***
+    private fun showDatePickerDialog() {
+        val calendar = Calendar.getInstance()
+        // 使用当前选择的日期作为选择器中的默认日期
+        calendar.time = Date.from(selectedDate.atStartOfDay(ZoneId.systemDefault()).toInstant())
+
+        val year = calendar.get(Calendar.YEAR)
+        val month = calendar.get(Calendar.MONTH)
+        val day = calendar.get(Calendar.DAY_OF_MONTH)
+
+        // 使用自定义的暗色主题
+        val datePickerDialog = DatePickerDialog(
+            requireContext(),
+            R.style.AlertDialogCustom, // 应用自定义暗色主题
+            { _, selectedYear, selectedMonth, selectedDayOfMonth ->
+                // 月份是从0开始的，所以+1
+                selectedDate = LocalDate.of(selectedYear, selectedMonth + 1, selectedDayOfMonth)
+                // 更新 EditText 显示新的日期
+                binding.editTextDate.setText(selectedDate.format(dateFormatter))
+            },
+            year,
+            month,
+            day
+        )
+        datePickerDialog.show()
+    }
+
 
     // *** 新增：删除确认对话框方法 ***
     private fun showDeleteConfirmationDialog(transactionId: String) {

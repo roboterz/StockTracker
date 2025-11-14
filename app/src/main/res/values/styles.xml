@@ -6,23 +6,49 @@
         <!-- Customize your theme here. -->
     </style>
 
-    <!-- 自定义 AlertDialog 样式，用于深色背景 -->
-    <style name="AlertDialogCustom" parent="Theme.AppCompat.Dialog.Alert">
-        <item name="android:windowBackground">@color/background_dark</item>
-        <item name="android:textColorPrimary">@color/white</item>
-        <item name="android:textColorAlertDialogListItem">@color/white</item>
-        <item name="colorAccent">@color/colorPrimary</item>
-        <item name="buttonBarNegativeButtonStyle">@style/NegativeButton</item>
-        <item name="buttonBarPositiveButtonStyle">@style/PositiveButton</item>
-    </style>
-
-    <style name="NegativeButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+    <!-- *** 移除：不再需要 NegativeButton 样式 *** -->
+    <!--
+    <style name="NegativeButton" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
         <item name="android:textColor">@color/subline_title</item>
     </style>
+    -->
 
-    <style name="PositiveButton" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
+    <!-- *** 移除：不再需要 PositiveButton 样式 *** -->
+    <!--
+    <style name="PositiveButton" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
         <item name="android:textColor">@color/colorPrimary</item>
     </style>
+    -->
 
+    <!--
+      自定义 AlertDialog 样式
+      *** 关键修复：父主题为 ThemeOverlay ***
+    -->
+    <style name="AlertDialogCustom" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <item name="android:windowBackground">@color/background_dark</item>
+
+        <!-- 主要文字颜色 (例如标题) -->
+        <item name="android:textColorPrimary">@color/white</item>
+        <!-- 次要文字颜色 (例如 DatePicker 的日期) -->
+        <item name="android:textColorSecondary">@color/subline_title</item>
+
+        <!--
+         *** 关键修复：移除 buttonBar... 属性 ***
+        -->
+        <!-- <item name="buttonBarNegativeButtonStyle">@style/NegativeButton</item> -->
+        <!-- <item name="buttonBarPositiveButtonStyle">@style/PositiveButton</item> -->
+
+        <!--
+         *** 关键修复：使用 colorPrimary 和 colorSecondary ***
+        -->
+        <!-- "确认" 按钮 (Positive) 和 日期选择器头部/选中日期 -->
+        <item name="colorPrimary">@color/colorPrimary</item>
+        <!-- "取消" 按钮 (Negative/Neutral) 的文本颜色 -->
+        <item name="colorSecondary">@color/subline_title</item>
+
+        <!-- *** 移除：上次尝试的 colorOnSurface *** -->
+        <!-- <item name="colorOnSurface">@color/subline_title</item> -->
+
+    </style>
 
 </resources>
