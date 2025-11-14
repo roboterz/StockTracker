@@ -73,7 +73,7 @@ class CashTransactionFragment : Fragment() {
         binding.toolbar.title = if (isEditMode) "编辑现金交易" else "现金交易"
         binding.buttonDelete.isVisible = isEditMode
 
-        if (isEditMode && transactionToEdit != null) {
+        if (isEditMode) {
             // 编辑模式：填充现有数据
             // *** 修改：设置日期变量并更新文本 ***
             selectedDate = transactionToEdit.date
@@ -117,7 +117,7 @@ class CashTransactionFragment : Fragment() {
             }
 
             // *** 修改：根据模式调用不同的 ViewModel 方法 ***
-            if (isEditMode && transactionToEdit != null) {
+            if (isEditMode) {
                 val updatedTransaction = transactionToEdit.copy(
                     date = date,
                     amount = amount,
@@ -131,7 +131,7 @@ class CashTransactionFragment : Fragment() {
 
         // *** 新增：删除按钮逻辑 ***
         binding.buttonDelete.setOnClickListener {
-            if (isEditMode && transactionToEdit != null) {
+            if (isEditMode) {
                 showDeleteConfirmationDialog(transactionToEdit.id)
             }
         }
