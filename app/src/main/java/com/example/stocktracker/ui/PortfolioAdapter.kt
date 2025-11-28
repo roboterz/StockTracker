@@ -30,11 +30,9 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.absoluteValue
 
-// ... (View Holder Types constants remain the same) ...
 private const val ITEM_VIEW_TYPE_HEADER = 0
 private const val ITEM_VIEW_TYPE_PROFIT_LOSS_CHART = 1
 private const val ITEM_VIEW_TYPE_CHART = 2
-// *** 修改：重新定义视图类型 ***
 private const val ITEM_VIEW_TYPE_STOCK_HEADER = 3
 private const val ITEM_VIEW_TYPE_STOCK = 4
 private const val ITEM_VIEW_TYPE_CLOSED_HEADER = 5
@@ -48,17 +46,15 @@ class PortfolioAdapter(
     private val onHoldingsClicked: () -> Unit,
     private val onClosedClicked: () -> Unit,
     private val onCashClicked: () -> Unit,
-    private val onCashItemClicked: (CashTransaction) -> Unit, // *** 新增：现金条目点击回调 ***
-    private val onTimeRangeSelected: (TimeRange) -> Unit // *** 新增：时间范围选择回调 ***
+    private val onCashItemClicked: (CashTransaction) -> Unit,
+    private val onTimeRangeSelected: (TimeRange) -> Unit
 ) : ListAdapter<PortfolioListItem, RecyclerView.ViewHolder>(PortfolioDiffCallback()) {
 
     override fun getItemViewType(position: Int): Int {
-// ... (getItemViewType logic remains the same) ...
         return when (getItem(position)) {
             is PortfolioListItem.Header -> ITEM_VIEW_TYPE_HEADER
             is PortfolioListItem.ProfitLossChart -> ITEM_VIEW_TYPE_PROFIT_LOSS_CHART
             is PortfolioListItem.Chart -> ITEM_VIEW_TYPE_CHART
-            // *** 新增类型 ***
             is PortfolioListItem.StockHeader -> ITEM_VIEW_TYPE_STOCK_HEADER
             is PortfolioListItem.Stock -> ITEM_VIEW_TYPE_STOCK
             is PortfolioListItem.ClosedPositionHeader -> ITEM_VIEW_TYPE_CLOSED_HEADER
@@ -69,13 +65,10 @@ class PortfolioAdapter(
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-// ... (onCreateViewHolder logic updated for new callbacks) ...
         return when (viewType) {
             ITEM_VIEW_TYPE_HEADER -> HeaderViewHolder.from(parent)
-            // *** 修改：传入 onTimeRangeSelected 回调 ***
             ITEM_VIEW_TYPE_PROFIT_LOSS_CHART -> ProfitLossChartViewHolder.from(parent, onTimeRangeSelected)
             ITEM_VIEW_TYPE_CHART -> ChartViewHolder.from(parent, onHoldingsClicked, onClosedClicked, onCashClicked)
-            // *** 新增 ViewHolder 创建 ***
             ITEM_VIEW_TYPE_STOCK_HEADER -> StockHeaderViewHolder.from(parent)
             ITEM_VIEW_TYPE_STOCK -> StockViewHolder.from(parent)
             ITEM_VIEW_TYPE_CLOSED_HEADER -> ClosedPositionHeaderViewHolder.from(parent)
@@ -87,16 +80,15 @@ class PortfolioAdapter(
     }
 
     override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-// ... (onBindViewHolder logic updated for ProfitLossChart) ...
         when (holder) {
             is HeaderViewHolder -> {
                 val headerItem = getItem(position) as PortfolioListItem.Header
                 holder.bind(headerItem.uiState)
             }
             is ProfitLossChartViewHolder -> {
-                // *** 修改：绑定真实数据 ***
                 val plChartItem = getItem(position) as PortfolioListItem.ProfitLossChart
-                holder.bind(plChartItem.chartData, plChartItem.selectedRange, plChartItem.isLoading)
+                // *** 修改：传入 benchmarkData ***
+                holder.bind(plChartItem.chartData, plChartItem.benchmarkData, plChartItem.selectedRange, plChartItem.isLoading)
             }
             is ChartViewHolder -> {
                 val chartItem = getItem(position) as PortfolioListItem.Chart
@@ -106,7 +98,6 @@ class PortfolioAdapter(
                 val stockItem = getItem(position) as PortfolioListItem.Stock
                 holder.bind(stockItem.stock, onStockClicked)
             }
-            // *** 新增 ViewHolder 绑定 ***
             is StockHeaderViewHolder -> holder.bind()
             is ClosedPositionHeaderViewHolder -> holder.bind()
             is ClosedPositionViewHolder -> {
@@ -116,49 +107,32 @@ class PortfolioAdapter(
             is CashHeaderViewHolder -> holder.bind()
             is CashTransactionViewHolder -> {
                 val cashItem = getItem(position) as PortfolioListItem.Cash
-                // *** 修改：传入点击回调 ***
                 holder.bind(cashItem.transaction, onCashItemClicked)
             }
         }
     }
 
-    // --- ViewHolders ---
-
-    // ... (HeaderViewHolder remains the same) ...
     class HeaderViewHolder(private val binding: ListItemPortfolioHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
 
         @SuppressLint("SetTextI18n")
         fun bind(uiState: StockUiState) {
-            val holdings = uiState.holdings // 活动持仓
-            val closedPositions = uiState.closedPositions // 已平仓
+            val holdings = uiState.holdings
+            val closedPositions = uiState.closedPositions
 
             val totalMarketValue = holdings.sumOf { it.marketValue }
             val totalDailyPL = holdings.sumOf { it.dailyPL }
             val totalHoldingPL = holdings.sumOf { it.holdingPL }
 
-            // *** 修复：总盈亏 = 活动持仓总盈亏 + 已平仓总盈亏 ***
             val activeTotalPL = holdings.sumOf { it.totalPL }
             val closedTotalPL = closedPositions.sumOf { it.totalPL }
             val totalPL = activeTotalPL + closedTotalPL
-            // *** 修复结束 ***
 
             val cash = uiState.cashBalance
-
-            // 持仓盈亏百分比的基数 = 活动持仓的总成本
             val totalCost = holdings.sumOf { it.totalCost }
-
-            // *** 修复：总盈亏百分比的基数 = 历史上所有买入的总成本 (包括已平仓的) ***
-            val totalCostOfAllBuysActive = holdings.sumOf { it.totalCostOfAllBuys }
-            val totalCostOfAllBuysClosed = closedPositions.sumOf { it.totalCostOfAllBuys }
-            val totalCostOfAllBuys = totalCostOfAllBuysActive + totalCostOfAllBuysClosed
-            // *** 修复结束 ***
 
             val totalDailyPLPercent = if (totalMarketValue - totalDailyPL != 0.0) (totalDailyPL / (totalMarketValue - totalDailyPL)) * 100 else 0.0
             val totalHoldingPLPercent = if (totalCost > 0) (totalHoldingPL / totalCost) * 100 else 0.0
-
-            // *** 修复：使用新的基数计算总盈亏百分比 ***
-            //val totalPLPercent = if (totalCostOfAllBuys > 0) (totalPL / totalCostOfAllBuys) * 100 else 0.0
-            val totalPLPercent = if (totalCost > 0) (totalPL / totalCost) * 100 else 0.0 // Corrected calculation base
+            val totalPLPercent = if (totalCost > 0) (totalPL / totalCost) * 100 else 0.0
 
             binding.header.textViewMarketValue.text = formatCurrency(totalMarketValue, false)
 
@@ -173,8 +147,8 @@ class PortfolioAdapter(
             updateMetricColor(binding.header.metricHoldingPl.metricValue, binding.header.metricHoldingPl.metricPercent, totalHoldingPL)
 
             binding.header.metricTotalPl.metricLabel.text = "总盈亏"
-            binding.header.metricTotalPl.metricValue.text = formatCurrency(totalPL, true) // 绑定修复后的 totalPL
-            binding.header.metricTotalPl.metricPercent.text = "${formatCurrency(totalPLPercent, true)}%" // 绑定修复后的 totalPLPercent
+            binding.header.metricTotalPl.metricValue.text = formatCurrency(totalPL, true)
+            binding.header.metricTotalPl.metricPercent.text = "${formatCurrency(totalPLPercent, true)}%"
             updateMetricColor(binding.header.metricTotalPl.metricValue, binding.header.metricTotalPl.metricPercent, totalPL)
 
             binding.header.metricCash.metricLabel.text = "现金"
@@ -200,16 +174,15 @@ class PortfolioAdapter(
         }
     }
 
-    // *** 彻底重构 ProfitLossChartViewHolder ***
     class ProfitLossChartViewHolder(
         private val binding: ListItemPortfolioPlChartBinding,
-        private val onTimeRangeSelected: (TimeRange) -> Unit // 接收回调
+        private val onTimeRangeSelected: (TimeRange) -> Unit
     ) : RecyclerView.ViewHolder(binding.root) {
 
         private val timeRangeButtons: Map<TimeRange, Button>
         private var listenersAreSet = false
         private val mainLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineBlue)
-        private val djiLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineOrange)
+        private val benchmarkLineColor = ContextCompat.getColor(itemView.context, R.color.chartLineOrange) // 使用橙色作为基准色
         private val dateLabels: List<TextView>
         private val yearMonthFmt = DateTimeFormatter.ofPattern("yyyy-MM")
         private val monthDayFmt = DateTimeFormatter.ofPattern("MM-dd")
@@ -230,31 +203,29 @@ class PortfolioAdapter(
 
         fun bind(
             chartData: List<StockUiState.ChartDataPoint>,
+            // *** 新增：接收基准数据 ***
+            benchmarkData: List<StockUiState.ChartDataPoint>,
             selectedRange: TimeRange,
             isLoading: Boolean
         ) {
             if (!listenersAreSet) {
                 timeRangeButtons.forEach { (range, button) ->
                     button.setOnClickListener {
-                        // 点击按钮时，调用 ViewModel 的回调
                         onTimeRangeSelected(range)
                     }
                 }
                 listenersAreSet = true
             }
 
-            // 更新按钮的选中状态
             updateTimeRangeButtonTints(selectedRange)
 
-            // 控制加载指示器
             binding.plChartProgressBar.isVisible = isLoading
             binding.plLineChart.isVisible = !isLoading && chartData.isNotEmpty()
-            // (可以添加一个 "无数据" 的 TextView)
 
             if (!isLoading && chartData.isNotEmpty()) {
-                updateChart(chartData)
+                // *** 传入两组数据 ***
+                updateChart(chartData, benchmarkData)
             } else if (!isLoading) {
-                // 清空图表和标签
                 binding.plLineChart.setData(emptyList())
                 updateChartLabels(null, null, selectedRange)
                 updateChartMinMax(emptyList())
@@ -270,19 +241,31 @@ class PortfolioAdapter(
             }
         }
 
-        private fun updateChart(data: List<StockUiState.ChartDataPoint>) {
-            // 1. 更新折线图
-            // (目前只绘制总盈亏率，未来可以扩展绘制 DJI)
-            val points = data.map { it.value.toFloat() }
-            val lineDataList = listOf(LineData(points, mainLineColor))
+        private fun updateChart(
+            portfolioData: List<StockUiState.ChartDataPoint>,
+            benchmarkData: List<StockUiState.ChartDataPoint>
+        ) {
+            // 1. 准备多条曲线数据
+            val portfolioPoints = portfolioData.map { it.value.toFloat() }
+            val benchmarkPoints = benchmarkData.map { it.value.toFloat() }
+
+            val lineDataList = mutableListOf<LineData>()
+            // 主曲线 (投资组合)
+            lineDataList.add(LineData(portfolioPoints, mainLineColor))
+            // 基准曲线 (NASDAQ)
+            if (benchmarkPoints.isNotEmpty()) {
+                lineDataList.add(LineData(benchmarkPoints, benchmarkLineColor))
+            }
+
             binding.plLineChart.setData(lineDataList)
 
-            // 2. 更新 Y 轴 (Min/Max/Mid)
-            updateChartMinMax(points)
+            // 2. 更新 Y 轴 (Min/Max/Mid) - 综合两条曲线的极值
+            val allPoints = portfolioPoints + benchmarkPoints
+            updateChartMinMax(allPoints)
 
             // 3. 更新 X 轴 (日期标签)
-            val startDate = data.firstOrNull()?.date
-            val endDate = data.lastOrNull()?.date
+            val startDate = portfolioData.firstOrNull()?.date
+            val endDate = portfolioData.lastOrNull()?.date
             updateChartLabels(startDate, endDate, timeRangeButtons.entries.find { it.value.backgroundTintList == ColorStateList.valueOf(Color.parseColor("#2689FE")) }?.key ?: TimeRange.ONE_MONTH)
         }
 
@@ -302,7 +285,7 @@ class PortfolioAdapter(
         }
 
         private fun updateChartLabels(startDate: LocalDate?, endDate: LocalDate?, range: TimeRange) {
-            dateLabels.forEach { it.visibility = View.INVISIBLE } // 先全部隐藏
+            dateLabels.forEach { it.visibility = View.INVISIBLE }
 
             if (startDate == null || endDate == null) {
                 dateLabels.first().text = "无数据"
@@ -317,11 +300,10 @@ class PortfolioAdapter(
             }
 
             binding.dateStart.text = startDate.format(formatter)
-            binding.dateMid.text = "" // (可以根据需要计算中间日期)
+            binding.dateMid.text = ""
             binding.dateEnd.text = endDate.format(formatter)
 
             binding.dateStart.visibility = View.VISIBLE
-            // binding.dateMid.visibility = View.VISIBLE
             binding.dateEnd.visibility = View.VISIBLE
         }
 
@@ -334,10 +316,8 @@ class PortfolioAdapter(
             }
         }
     }
-    // *** 重构结束 ***
 
     class ChartViewHolder(
-// ... (ChartViewHolder and its companion object remain the same) ...
         private val binding: ListItemPortfolioChartBinding,
         private val onHoldingsClicked: () -> Unit,
         private val onClosedClicked: () -> Unit,
@@ -360,7 +340,6 @@ class PortfolioAdapter(
 
         fun bind(holdings: List<StockHolding>, selectedType: AssetType) {
             if (!listenersAreSet) {
-                // *** 设置监听器以调用 Fragment 中的回调 ***
                 binding.buttonHoldingsDetail.setOnClickListener { onHoldingsClicked() }
                 binding.buttonClosedPositionsDetail.setOnClickListener { onClosedClicked() }
                 binding.buttonCashDetail.setOnClickListener { onCashClicked() }
@@ -380,7 +359,6 @@ class PortfolioAdapter(
 
             }
 
-            // *** 根据传入的状态更新按钮的选中样式 ***
             binding.buttonHoldingsDetail.isSelected = selectedType == AssetType.HOLDINGS
             binding.buttonClosedPositionsDetail.isSelected = selectedType == AssetType.CLOSED
             binding.buttonCashDetail.isSelected = selectedType == AssetType.CASH
@@ -392,7 +370,6 @@ class PortfolioAdapter(
                 return
             }
 
-            // *** Key Fix: Sort first, then group ***
             val sortedHoldings = holdings.sortedByDescending { it.marketValue }
             val holdingsForChart: List<Pair<String, Double>>
 
@@ -451,10 +428,8 @@ class PortfolioAdapter(
         }
     }
 
-    // --- Stock (Active Holding) ViewHolder ---
-// ... (StockHeaderViewHolder and StockViewHolder remain the same) ...
     class StockHeaderViewHolder(binding: ListItemStockHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind() { /* 静态布局, 无需绑定 */ }
+        fun bind() { }
 
         companion object {
             fun from(parent: ViewGroup): StockHeaderViewHolder {
@@ -473,7 +448,6 @@ class PortfolioAdapter(
             binding.textViewName.text = stock.name
             binding.textViewTicker.text = stock.ticker
             binding.textViewMarketValue.text = formatCurrency(stock.marketValue, false)
-            // *** 修复：现在直接显示 totalCost，它代表剩余持仓的总成本（已含手续费）***
             binding.textViewTotalCost.text = "(USD)${formatCurrency(stock.totalCost, false)}"
             binding.textViewDailyPlValue.text = formatCurrency(stock.dailyPL, true)
             binding.textViewDailyPlPercent.text = "${formatCurrency(stock.dailyPLPercent, true)}%"
@@ -502,10 +476,8 @@ class PortfolioAdapter(
         }
     }
 
-    // --- 新增：Closed Position ViewHolders ---
-// ... (ClosedPositionHeaderViewHolder and ClosedPositionViewHolder remain the same) ...
     class ClosedPositionHeaderViewHolder(binding: ListItemClosedPositionHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind() { /* 静态布局, 无需绑定 */ }
+        fun bind() { }
 
         companion object {
             fun from(parent: ViewGroup): ClosedPositionHeaderViewHolder {
@@ -549,10 +521,8 @@ class PortfolioAdapter(
         }
     }
 
-    // --- 新增：Cash Transaction ViewHolders ---
-// ... (CashHeaderViewHolder and CashTransactionViewHolder remain the same) ...
     class CashHeaderViewHolder(binding: ListItemCashHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind() { /* 静态布局, 无需绑定 */ }
+        fun bind() { }
 
         companion object {
             fun from(parent: ViewGroup): CashHeaderViewHolder {
@@ -568,16 +538,13 @@ class PortfolioAdapter(
 
         @SuppressLint("SetTextI1G")
         fun bind(transaction: com.example.stocktracker.data.CashTransaction, onCashItemClicked: (CashTransaction) -> Unit) {
-            // *** 新增：设置点击监听器 ***
             itemView.setOnClickListener {
-                // 只有非股票关联的现金交易（存入/取出）才可以编辑
                 if (transaction.stockTransactionId == null) {
                     onCashItemClicked(transaction)
                 }
             }
 
             binding.textViewDate.text = transaction.date.format(dateFormatter)
-            //val isDeposit = transaction.type == com.example.stocktracker.data.CashTransactionType.DEPOSIT
 
             when (transaction.type){
                 CashTransactionType.DEPOSIT -> {
@@ -614,19 +581,6 @@ class PortfolioAdapter(
 
                 }
             }
-
-
-//            if (isDeposit) {
-//                binding.textViewType.text = "存入"
-//                binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
-//                binding.textViewAmount.text = formatCurrency(transaction.amount, true)
-//                binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
-//            } else {
-//                binding.textViewType.text = "取出"
-//                binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
-//                binding.textViewAmount.text = formatCurrency(-transaction.amount, true)
-//                binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
-//            }
         }
 
         companion object {
@@ -638,9 +592,6 @@ class PortfolioAdapter(
         }
     }
 }
-
-// --- DiffUtil Callback ---
-// ... (PortfolioDiffCallback remains the same) ...
 
 class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioListItem>() {
     override fun areItemsTheSame(oldItem: PortfolioListItem, newItem: PortfolioListItem): Boolean {

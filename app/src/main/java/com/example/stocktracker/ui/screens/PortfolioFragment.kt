@@ -44,19 +44,15 @@ class PortfolioFragment : Fragment() {
         StockViewModelFactory(requireActivity().application)
     }
 
-    // --- SAF 启动器 ---
     private lateinit var exportDbLauncher: ActivityResultLauncher<String>
     private lateinit var importDbLauncher: ActivityResultLauncher<Array<String>>
-    // --- SAF 启动器结束 ---
 
-    // *** 新增：跟踪当前选择的资产类型 ***
     private var selectedAssetType = AssetType.HOLDINGS
     private var portfolioAdapter: PortfolioAdapter? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // 初始化 SAF 启动器
         setupDbLaunchers()
     }
 
@@ -80,11 +76,9 @@ class PortfolioFragment : Fragment() {
 
         binding.swipeRefreshLayout.setOnRefreshListener {
             viewModel.refreshData()
-            // *** 重新触发当前选定范围的图表计算 ***
             viewModel.updatePortfolioChart(viewModel.uiState.value.chartTimeRange)
         }
 
-        // *** 修改：初始化 Adapter 并传入所有点击回调 ***
         portfolioAdapter = PortfolioAdapter(
             onStockClicked = { stock ->
                 viewModel.selectStock(stock.id)
@@ -92,7 +86,7 @@ class PortfolioFragment : Fragment() {
             },
             onHoldingsClicked = {
                 selectedAssetType = AssetType.HOLDINGS
-                updateAdapterList(viewModel.uiState.value) // 使用当前状态立即重建列表
+                updateAdapterList(viewModel.uiState.value)
             },
             onClosedClicked = {
                 selectedAssetType = AssetType.CLOSED
@@ -102,12 +96,10 @@ class PortfolioFragment : Fragment() {
                 selectedAssetType = AssetType.CASH
                 updateAdapterList(viewModel.uiState.value)
             },
-            // *** 新增：处理现金条目点击 ***
             onCashItemClicked = { cashTransaction ->
                 viewModel.prepareEditCashTransaction(cashTransaction.id)
                 findNavController().navigate(R.id.action_portfolioFragment_to_cashTransactionFragment)
             },
-            // *** 新增：处理图表时间范围选择 ***
             onTimeRangeSelected = { timeRange ->
                 viewModel.updatePortfolioChart(timeRange)
             }
@@ -117,17 +109,13 @@ class PortfolioFragment : Fragment() {
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.collect { uiState ->
-                    // *** 更新 Toolbar 标题 ***
                     binding.toolbar.title = uiState.portfolioName
-
                     binding.swipeRefreshLayout.isRefreshing = uiState.isRefreshing
-
-                    // *** 修改：调用新的列表构建函数 ***
                     updateAdapterList(uiState)
                 }
             }
         }
-// ... (toast listener remains the same) ...
+
         viewLifecycleOwner.lifecycleScope.launch {
             viewModel.toastEvents.collectLatest { message ->
                 Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
@@ -137,29 +125,24 @@ class PortfolioFragment : Fragment() {
         setupToolbarListeners()
     }
 
-    // *** 新增：根据当前选择的
     private fun updateAdapterList(uiState: StockUiState) {
         val activeHoldings = uiState.holdings.filter { it.totalQuantity > 0 }
-        // 创建一个仅包含活动持仓的 uiState 子集用于 Header 和 Chart
         val filteredUiState = uiState.copy(holdings = activeHoldings)
 
         val portfolioItems = mutableListOf<PortfolioListItem>()
-        // 1. 添加 Header (始终显示活动持仓的统计)
         portfolioItems.add(PortfolioListItem.Header(filteredUiState))
 
-        // 2. 添加盈亏图表 (*** 修改：传入真实数据 ***)
+        // *** 修改：传递基准数据 (benchmarkChartData) ***
         portfolioItems.add(PortfolioListItem.ProfitLossChart(
             chartData = uiState.portfolioChartData,
+            benchmarkData = uiState.benchmarkChartData,
             selectedRange = uiState.chartTimeRange,
             isLoading = uiState.isChartLoading
         ))
 
-        // 3. 添加资产分布图 (包含当前选中的按钮状态)
-        // *** 修复：即使没有持仓，也要显示 Chart 项以显示按钮 ***
         portfolioItems.add(PortfolioListItem.Chart(filteredUiState.holdings, selectedAssetType))
 
 
-        // 4. 根据所选选项卡添加相应的列表数据
         when (selectedAssetType) {
             AssetType.HOLDINGS -> {
                 portfolioItems.add(PortfolioListItem.StockHeader)
@@ -181,22 +164,17 @@ class PortfolioFragment : Fragment() {
             }
         }
 
-        // 5. 提交列表到 Adapter
         portfolioAdapter?.submitList(portfolioItems)
     }
 
 
-    // --- SAF 启动器初始化 ---
-// ... (setupDbLaunchers remains the same) ...
     private fun setupDbLaunchers() {
-        // 导出：使用 ACTION_CREATE_DOCUMENT，指定默认文件名为 .db 格式
         exportDbLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
             uri?.let {
                 viewModel.exportDatabase(it)
             }
         }
 
-        // 导入：使用 ACTION_OPEN_DOCUMENT，只允许选择 .db 文件
         importDbLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             uri?.let {
                 viewModel.importDatabase(it)
@@ -204,12 +182,9 @@ class PortfolioFragment : Fragment() {
             reStartApp()
         }
     }
-    // --- SAF 启动器结束 ---
 
     private fun setupToolbarListeners() {
-        // *** 实现点击 Toolbar 标题编辑名称的逻辑 ***
         binding.toolbar.setOnClickListener {
-            // 使用自定义对话框（由于不能使用 alert/confirm，这里使用 AlertDialog 模拟）
             showEditPortfolioNameDialog(viewModel.uiState.value.portfolioName)
         }
 
@@ -221,37 +196,31 @@ class PortfolioFragment : Fragment() {
                     true
                 }
                 R.id.action_add_cash -> {
-                    // *** 修改：通知 ViewModel 准备添加新现金交易 ***
                     viewModel.prepareNewCashTransaction()
                     findNavController().navigate(R.id.action_portfolioFragment_to_cashTransactionFragment)
                     true
                 }
-                // --- 导出/导入菜单项处理 ---
                 R.id.action_export_db -> {
                     val date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
                     val defaultName = "stock_tracker_backup_$date.db"
-                    // 启动文件创建选择器
                     exportDbLauncher.launch(defaultName)
                     true
                 }
                 R.id.action_import_db -> {
-                    // 启动文件选择器，筛选 .db 文件
                     importDbLauncher.launch(arrayOf("application/octet-stream"))
                     true
                 }
-                // --- 导出/导入菜单项处理结束 ---
                 else -> false
             }
         }
     }
 
-    // ... (showEditPortfolioNameDialog and reStartApp remain the same) ...
     private fun showEditPortfolioNameDialog(currentName: String) {
         val editText = EditText(requireContext()).apply {
             setText(currentName)
             hint = "输入投资组合名称"
-            setTextColor(requireContext().getColor(android.R.color.white)) // 设置文字颜色
-            setBackgroundResource(android.R.color.transparent) // 移除背景，让它融入对话框
+            setTextColor(requireContext().getColor(android.R.color.white))
+            setBackgroundResource(android.R.color.transparent)
         }
 
         val padding = resources.getDimensionPixelSize(R.dimen.edit_text_padding)
@@ -267,7 +236,6 @@ class PortfolioFragment : Fragment() {
             .setPositiveButton("保存") { dialog, _ ->
                 val newName = editText.text.toString().trim()
                 if (newName.isNotBlank()) {
-                    // *** 修复：直接调用 viewModel 的 savePortfolioName ***
                     viewModel.savePortfolioName(newName)
                 } else {
                     Toast.makeText(requireContext(), "名称不能为空", Toast.LENGTH_SHORT).show()
@@ -281,19 +249,17 @@ class PortfolioFragment : Fragment() {
     }
 
     private fun reStartApp() {
-        // restart Activity
         val intent = Intent(requireContext(), MainActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
-        finishAffinity(requireActivity())// close all Activity
+        finishAffinity(requireActivity())
 
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
-        binding.recyclerViewStocks.adapter = null // *** 新增：清理 adapter 引用 ***
-        portfolioAdapter = null // *** 新增：清理 adapter 引用 ***
+        binding.recyclerViewStocks.adapter = null
+        portfolioAdapter = null
         _binding = null
     }
 }
-

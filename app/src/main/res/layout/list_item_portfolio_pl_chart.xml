@@ -98,7 +98,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
-            android:text="DJI"
+            android:text="IXIC"
             android:textColor="#bbb"
             android:textSize="12sp" />
     </LinearLayout>
