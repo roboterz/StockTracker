@@ -561,7 +561,7 @@ class StockViewModel(application: Application) : ViewModel() {
         }
     }
 
-    private suspend fun saveOrUpdateTransactionInternal(
+    suspend fun saveOrUpdateTransactionInternal(
         transaction: Transaction,
         stockId: String?,
         newStockIdentifier: String,

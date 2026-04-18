@@ -23,8 +23,10 @@ import com.example.stocktracker.databinding.FragmentAddOrEditTransactionBinding
 import com.example.stocktracker.ui.viewmodel.NavigationEvent
 import com.example.stocktracker.ui.viewmodel.StockViewModel
 import com.example.stocktracker.ui.viewmodel.StockViewModelFactory
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -151,42 +153,11 @@ class AddOrEditTransactionFragment : Fragment() {
         }
 
         binding.buttonSave.setOnClickListener {
-            val stock = viewModel.uiState.value.selectedStock
-            val isNewStockMode = stock.id.isEmpty() && transactionToEdit == null
-            // val formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd") // 已移至类级别
+            saveTransaction(false, transactionToEdit)
+        }
 
-            val price = binding.editTextPrice.text.toString().toDoubleOrNull()
-            val quantity = binding.editTextQuantity.text.toString().toDoubleOrNull()
-            val fee = binding.editTextFee.text.toString().toDoubleOrNull() ?: 0.0
-            // *** 修改：从 selectedDate 获取日期 ***
-            val dateStr = selectedDate.format(dateFormatter) // 确保 dateStr 非空
-
-            val newStockId = if (isNewStockMode) binding.editTextStockId.text.toString() else ""
-            val stockName = if (isNewStockMode) binding.editTextStockName.text.toString() else stock.name
-
-
-            if (price == null || quantity == null || dateStr.isBlank() || (isNewStockMode && (newStockId.isBlank() || stockName.isBlank()))) {
-                Toast.makeText(requireContext(), "请填写所有必填字段", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            val transaction = Transaction(
-                id = transactionToEdit?.id ?: UUID.randomUUID().toString(),
-                // *** 修改：使用 selectedDate 变量 ***
-                date = selectedDate,
-                type = if (binding.buttonToggleGroup.checkedButtonId == binding.buttonBuy.id) TransactionType.BUY else TransactionType.SELL,
-                quantity = quantity,
-                price = price,
-                fee = fee
-            )
-
-            viewModel.saveOrUpdateTransaction(
-                transaction,
-                stock.id.ifEmpty { null },
-                newStockId,
-                stockName,
-                fetchedExchangeName // *** 传递交易所代码 ***
-            )
+        binding.buttonSaveAndContinue.setOnClickListener {
+            saveTransaction(true, transactionToEdit)
         }
 
         binding.buttonDelete.setOnClickListener {
@@ -206,6 +177,66 @@ class AddOrEditTransactionFragment : Fragment() {
     }
 
     // *** 新增：显示日期选择器的方法 ***
+    private fun saveTransaction(continueAdding: Boolean, transactionToEdit: Transaction?) {
+        val stock = viewModel.uiState.value.selectedStock
+        val isNewStockMode = stock.id.isEmpty() && transactionToEdit == null
+
+        val price = binding.editTextPrice.text.toString().toDoubleOrNull()
+        // *** 默认数量为 1 ***
+        val quantityStr = binding.editTextQuantity.text.toString()
+        val quantity = if (quantityStr.isBlank()) 1.0 else quantityStr.toDoubleOrNull()
+        
+        val fee = binding.editTextFee.text.toString().toDoubleOrNull() ?: 0.0
+        val dateStr = selectedDate.format(dateFormatter)
+
+        val newStockId = if (isNewStockMode) binding.editTextStockId.text.toString() else ""
+        val stockName = if (isNewStockMode) binding.editTextStockName.text.toString() else stock.name
+
+        if (price == null || quantity == null || dateStr.isBlank() || (isNewStockMode && (newStockId.isBlank() || stockName.isBlank()))) {
+            Toast.makeText(requireContext(), "请填写价格等必填字段", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val transaction = Transaction(
+            id = transactionToEdit?.id ?: UUID.randomUUID().toString(),
+            date = selectedDate,
+            type = if (binding.buttonToggleGroup.checkedButtonId == binding.buttonBuy.id) TransactionType.BUY else TransactionType.SELL,
+            quantity = quantity,
+            price = price,
+            fee = fee
+        )
+
+        if (continueAdding) {
+            // 保存并继续：直接调用内部保存逻辑，不触发导航事件
+            lifecycleScope.launch(Dispatchers.IO) {
+                viewModel.saveOrUpdateTransactionInternal(
+                    transaction,
+                    stock.id.ifEmpty { null },
+                    newStockId,
+                    stockName,
+                    fetchedExchangeName
+                )
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(requireContext(), "已保存", Toast.LENGTH_SHORT).show()
+                    // 清空输入框以便连续输入
+                    binding.editTextPrice.text?.clear()
+                    binding.editTextQuantity.text?.clear()
+                    binding.editTextFee.text?.clear()
+                    binding.editTextPrice.requestFocus()
+                }
+            }
+        } else {
+            // 普通保存：调用 ViewModel 的标准保存（含导航逻辑）
+            viewModel.saveOrUpdateTransaction(
+                transaction,
+                stock.id.ifEmpty { null },
+                newStockId,
+                stockName,
+                fetchedExchangeName
+            )
+        }
+    }
+
     private fun showDatePickerDialog() {
         val calendar = Calendar.getInstance()
         // 使用当前选择的日期作为选择器中的默认日期
