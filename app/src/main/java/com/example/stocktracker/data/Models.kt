@@ -53,7 +53,7 @@ data class StockHolding(
     private val simpleTotalQuantity: Double by lazy {
         var quantity = 0.0
         transactions
-            .sortedBy { it.date }
+            .sortedWith(compareBy<Transaction> { it.date }.thenBy { if (it.type == TransactionType.SPLIT) 0 else 1 })
             .forEach {
                 when (it.type) {
                     TransactionType.BUY -> quantity += it.quantity
@@ -125,7 +125,7 @@ data class StockHolding(
         var quantity = 0.0
         transactions
             .filter { it.date.isBefore(date) || it.date.isEqual(date) }
-            .sortedBy { it.date }
+            .sortedWith(compareBy<Transaction> { it.date }.thenBy { if (it.type == TransactionType.SPLIT) 0 else 1 })
             .forEach {
                 when (it.type) {
                     TransactionType.BUY -> quantity += it.quantity
@@ -154,7 +154,7 @@ data class StockHolding(
     )
 
     private fun performFifoCalculations(): FifoResult {
-        val sortedTransactions = transactions.sortedBy { it.date }
+        val sortedTransactions = transactions.sortedWith(compareBy<Transaction> { it.date }.thenBy { if (it.type == TransactionType.SPLIT) 0 else 1 })
         val remainingBuys = mutableListOf<Transaction>()
         var totalSoldValue = 0.0
         var totalRealizedProfit = 0.0

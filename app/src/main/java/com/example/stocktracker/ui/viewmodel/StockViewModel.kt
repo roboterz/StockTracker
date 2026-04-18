@@ -232,39 +232,59 @@ class StockViewModel(application: Application) : ViewModel() {
                 var successfulFetches = 0
                 val newPriceData = mutableMapOf<String, YahooFinanceScraper.ScrapedData>()
 
-                val dbWriteJobs = mutableListOf<Job>()
                 results.forEach { data ->
-                    data.dividendHistory?.forEach { dividendInfo ->
-                        val alreadyExists = data.holding.transactions.any { it.type == TransactionType.DIVIDEND && it.date == dividendInfo.date }
-                        if (!alreadyExists) {
-                            val sharesOnDate = data.holding.getQuantityOnDate(dividendInfo.date.minusDays(1))
-                            if (sharesOnDate.absoluteValue > 1e-9) {
-                                val dividendTransaction = Transaction(
-                                    date = dividendInfo.date,
-                                    type = TransactionType.DIVIDEND,
-                                    quantity = sharesOnDate,
-                                    price = dividendInfo.dividend
-                                )
-                                dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(dividendTransaction, data.holding.id, "", data.holding.name, data.priceData?.exchangeName) })
-                            }
-                        }
-                    }
+                    val pendingTransactions = mutableListOf<Transaction>()
 
+                    // 1. 收集所有不存在的拆股记录
                     data.splitHistory?.forEach { splitInfo ->
                         val alreadyExists = data.holding.transactions.any { it.type == TransactionType.SPLIT && it.date == splitInfo.date }
                         if (!alreadyExists) {
-                            val splitTransaction = Transaction(
+                            pendingTransactions.add(Transaction(
                                 date = splitInfo.date,
                                 type = TransactionType.SPLIT,
                                 quantity = splitInfo.numerator,
                                 price = splitInfo.denominator
-                            )
-                            dbWriteJobs.add(launch(Dispatchers.IO) { saveOrUpdateTransactionInternal(splitTransaction, data.holding.id, "", data.holding.name, data.priceData?.exchangeName) })
+                            ))
+                        }
+                    }
+
+                    // 2. 收集所有不存在的分红记录
+                    data.dividendHistory?.forEach { dividendInfo ->
+                        val alreadyExists = data.holding.transactions.any { it.type == TransactionType.DIVIDEND && it.date == dividendInfo.date }
+                        if (!alreadyExists) {
+                            pendingTransactions.add(Transaction(
+                                date = dividendInfo.date,
+                                type = TransactionType.DIVIDEND,
+                                quantity = 0.0, // 占位，后面计算
+                                price = dividendInfo.dividend
+                            ))
+                        }
+                    }
+
+                    // 3. 核心：按日期排序，同日 SPLIT 优先
+                    val sortedPending = pendingTransactions.sortedWith(
+                        compareBy<Transaction> { it.date }.thenBy { if (it.type == TransactionType.SPLIT) 0 else 1 }
+                    )
+
+                    // 4. 逐条插入并更新持仓状态
+                    sortedPending.forEach { t ->
+                        // 重新从数据库获取最新的 stock 状态，确保 getQuantityOnDate 准确
+                        val stockWithTransactions = stockDao.getAllStocksWithTransactions().firstOrNull()?.find { it.stock.id == data.holding.id } ?: return@forEach
+                        val currentHolding = stockWithTransactions.toUIModel()
+
+                        val transactionToSave = if (t.type == TransactionType.DIVIDEND) {
+                            // 分红需要计算除息日前的股数
+                            val sharesOnDate = currentHolding.getQuantityOnDate(t.date.minusDays(1))
+                            if (sharesOnDate.absoluteValue > 1e-9) {
+                                t.copy(quantity = sharesOnDate)
+                            } else null
+                        } else t
+
+                        transactionToSave?.let {
+                            saveOrUpdateTransactionInternal(it, data.holding.id, "", data.holding.name, data.priceData?.exchangeName)
                         }
                     }
                 }
-
-                dbWriteJobs.joinAll()
 
                 results.forEach { data ->
                     data.priceData?.let {
@@ -671,20 +691,6 @@ class StockViewModel(application: Application) : ViewModel() {
             if (transactionToDelete != null) {
                 stockDao.deleteTransactionById(transactionId)
                 cashDao.deleteByStockTransactionId(transactionId)
-
-                if (transactionToDelete.type == TransactionType.BUY || transactionToDelete.type == TransactionType.SELL) {
-                    val specialTypes = listOf(TransactionType.DIVIDEND, TransactionType.SPLIT)
-
-                    val transactionsToRemove = stock.transactions.filter {
-                        it.type in specialTypes && it.id != transactionId
-                    }
-
-                    transactionsToRemove.forEach { t ->
-                        stockDao.deleteTransactionById(t.id)
-                        cashDao.deleteByStockTransactionId(t.id)
-                    }
-                    launch { refreshData() }
-                }
 
                 val remainingTransactions = stockDao.getTransactionsByStockId(stock.id)
                 if (remainingTransactions.isEmpty()) {

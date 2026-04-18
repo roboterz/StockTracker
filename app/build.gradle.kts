@@ -2,7 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose) // This should be `alias(libs.plugins.kotlin.compose.compiler)` if you are using version catalogs for compose compiler
-    id("com.google.devtools.ksp") version "2.2.20-2.0.3"
+    id("com.google.devtools.ksp") version "2.3.5"
 
 }
 
@@ -15,7 +15,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "1.108"
+        versionName = "1.109"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

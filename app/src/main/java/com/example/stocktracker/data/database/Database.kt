@@ -125,6 +125,9 @@ interface StockDao {
     @Query("SELECT * FROM stocks WHERE id = :stockId")
     suspend fun getStockById(stockId: String): StockHoldingEntity?
 
+    @Query("SELECT * FROM stocks WHERE id = :stockId")
+    fun getStockByIdDirect(stockId: String): StockHoldingEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStock(stock: StockHoldingEntity)
 

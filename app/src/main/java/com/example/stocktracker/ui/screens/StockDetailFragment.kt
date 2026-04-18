@@ -169,7 +169,7 @@ class StockDetailFragment : Fragment() {
         binding.header.layoutInfoCostBasis.infoValue.text = DecimalFormat("#.##").format( stock.costBasis).toString()
 
         binding.header.layoutInfoQuantity.infoLabel.text = "数量"
-        binding.header.layoutInfoQuantity.infoValue.text = DecimalFormat("#.##").format(stock.totalQuantity).toString()
+        binding.header.layoutInfoQuantity.infoValue.text = DecimalFormat("#.####").format(stock.totalQuantity).toString()
 
         binding.header.layoutInfoTotalCost.infoLabel.text = "持仓总成本" // Update label
         // *** 修复：现在直接显示 totalCost，它代表剩余持仓的总成本（已含手续费）***
