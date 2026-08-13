@@ -1,11 +1,20 @@
 package com.example.stocktracker.data
 
 import com.example.stocktracker.data.database.CashTransactionEntity
+import com.example.stocktracker.data.database.PortfolioEntity
 import com.example.stocktracker.data.database.StockHoldingEntity
 import com.example.stocktracker.data.database.StockWithTransactions
 import com.example.stocktracker.data.database.TransactionEntity
 
 // --- 数据映射 (Data Mappers) ---
+
+fun PortfolioEntity.toUIModel(): Portfolio {
+    return Portfolio(id, name)
+}
+
+fun Portfolio.toEntity(): PortfolioEntity {
+    return PortfolioEntity(id, name)
+}
 
 fun StockWithTransactions.toUIModel(): StockHolding {
     val uiTransactions = transactions.map { it.toUIModel() }
@@ -36,8 +45,8 @@ fun CashTransactionEntity.toUIModel(): CashTransaction {
 }
 
 
-fun StockHolding.toEntity(): StockHoldingEntity {
-    return StockHoldingEntity(id, name, ticker, currentPrice)
+fun StockHolding.toEntity(portfolioId: String): StockHoldingEntity {
+    return StockHoldingEntity(id, portfolioId, name, ticker, currentPrice)
 }
 
 fun Transaction.toEntity(stockId: String): TransactionEntity {
@@ -45,7 +54,7 @@ fun Transaction.toEntity(stockId: String): TransactionEntity {
 }
 
 // 新增：现金交易的映射函数
-fun CashTransaction.toEntity(): CashTransactionEntity {
-    return CashTransactionEntity(id, date, type, amount, stockTransactionId)
+fun CashTransaction.toEntity(portfolioId: String): CashTransactionEntity {
+    return CashTransactionEntity(id, portfolioId, date, type, amount, stockTransactionId)
 }
 

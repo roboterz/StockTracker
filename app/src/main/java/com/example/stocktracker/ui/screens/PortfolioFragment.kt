@@ -16,11 +16,11 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
+import androidx.navigation.fragment.findNavController
+import androidx.navigation.navGraphViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.navigation.fragment.findNavController
 import com.example.stocktracker.MainActivity
 import com.example.stocktracker.R
 import com.example.stocktracker.data.CashTransaction
@@ -40,8 +40,10 @@ class PortfolioFragment : Fragment() {
     private var _binding: FragmentPortfolioBinding? = null
     private val binding get() = _binding!!
 
-    private val viewModel: StockViewModel by activityViewModels {
-        StockViewModelFactory(requireActivity().application)
+    private val viewModel: StockViewModel by navGraphViewModels(R.id.portfolio_graph) {
+        val navBackStackEntry = findNavController().getBackStackEntry(R.id.portfolio_graph)
+        val portfolioId = navBackStackEntry.arguments?.getString("portfolioId") ?: ""
+        StockViewModelFactory(requireActivity().application, portfolioId)
     }
 
     private lateinit var exportDbLauncher: ActivityResultLauncher<String>
@@ -184,6 +186,9 @@ class PortfolioFragment : Fragment() {
     }
 
     private fun setupToolbarListeners() {
+        binding.toolbar.setNavigationOnClickListener {
+            findNavController().popBackStack()
+        }
         binding.toolbar.setOnClickListener {
             showEditPortfolioNameDialog(viewModel.uiState.value.portfolioName)
         }

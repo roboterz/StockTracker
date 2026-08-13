@@ -12,9 +12,9 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
+import androidx.navigation.navGraphViewModels
 import com.example.stocktracker.R
 import com.example.stocktracker.data.CashTransaction
 import com.example.stocktracker.data.CashTransactionType
@@ -35,8 +35,10 @@ class CashTransactionFragment : Fragment() {
     private var _binding: FragmentCashTransactionBinding? = null
     private val binding get() = _binding!!
 
-    private val viewModel: StockViewModel by activityViewModels {
-        StockViewModelFactory(requireActivity().application)
+    private val viewModel: StockViewModel by navGraphViewModels(R.id.portfolio_graph) {
+        val navBackStackEntry = findNavController().getBackStackEntry(R.id.portfolio_graph)
+        val portfolioId = navBackStackEntry.arguments?.getString("portfolioId") ?: ""
+        StockViewModelFactory(requireActivity().application, portfolioId)
     }
 
     // *** 新增：日期格式化和选择的日期变量 ***

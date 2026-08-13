@@ -35,6 +35,21 @@ data class CashTransaction(
 )
 
 
+data class Portfolio(
+    val id: String = UUID.randomUUID().toString(),
+    val name: String
+)
+
+data class PortfolioSummary(
+    val portfolio: Portfolio,
+    val totalMarketValue: Double,
+    val dailyPL: Double,
+    val dailyPLPercent: Double,
+    val totalPL: Double,
+    val totalPLPercent: Double
+)
+
+
 data class StockHolding(
     val id: String,
     val name: String,

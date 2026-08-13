@@ -17,14 +17,32 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.time.LocalDate
+import java.util.UUID
 import java.util.concurrent.Executors
 
 // --- 数据库层 (Room Database Layer) ---
 
-// ... (StockHoldingEntity, TransactionEntity, CashTransactionEntity, PortfolioSettingsEntity, StockWithTransactions, Converters, StockDao, PortfolioSettingsDao definitions remain the same) ...
-@Entity(tableName = "stocks")
+@Entity(tableName = "portfolios")
+data class PortfolioEntity(
+    @PrimaryKey val id: String = UUID.randomUUID().toString(),
+    val name: String
+)
+
+@Entity(
+    tableName = "stocks",
+    foreignKeys = [
+        ForeignKey(
+            entity = PortfolioEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["portfolioId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["portfolioId"])]
+)
 data class StockHoldingEntity(
-    @PrimaryKey val id: String,
+    @PrimaryKey val id: String, // 使用 "ticker_portfolioId" 或 UUID
+    val portfolioId: String,
     val name: String,
     val ticker: String,
     val currentPrice: Double
@@ -52,20 +70,25 @@ data class TransactionEntity(
 )
 
 // 新增：现金交易实体
-@Entity(tableName = "cash_transactions")
+@Entity(
+    tableName = "cash_transactions",
+    foreignKeys = [
+        ForeignKey(
+            entity = PortfolioEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["portfolioId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["portfolioId"])]
+)
 data class CashTransactionEntity(
     @PrimaryKey val id: String,
+    val portfolioId: String,
     val date: LocalDate,
     val type: CashTransactionType,
     val amount: Double,
     val stockTransactionId: String? // 可为空，用于关联股票交易
-)
-
-// *** 新增：投资组合设置实体 ***
-@Entity(tableName = "portfolio_settings")
-data class PortfolioSettingsEntity(
-    @PrimaryKey val id: Int = 1, // 固定ID，确保只有一行记录
-    val name: String
 )
 
 // 用于查询的组合数据类 (POJO for Queries)
@@ -76,6 +99,16 @@ data class StockWithTransactions(
         entityColumn = "stockId"
     )
     val transactions: List<TransactionEntity>
+)
+
+data class PortfolioWithHoldings(
+    @Embedded val portfolio: PortfolioEntity,
+    @Relation(
+        entity = StockHoldingEntity::class,
+        parentColumn = "id",
+        entityColumn = "portfolioId"
+    )
+    val holdings: List<StockWithTransactions>
 )
 
 // Room类型转换器
@@ -117,16 +150,15 @@ class Converters {
 // 数据访问对象 (DAO)
 @Dao
 interface StockDao {
-    // ... (Existing methods remain the same) ...
     @androidx.room.Transaction
-    @Query("SELECT * FROM stocks")
-    fun getAllStocksWithTransactions(): Flow<List<StockWithTransactions>>
+    @Query("SELECT * FROM stocks WHERE portfolioId = :portfolioId")
+    fun getStocksWithTransactionsByPortfolio(portfolioId: String): Flow<List<StockWithTransactions>>
 
     @Query("SELECT * FROM stocks WHERE id = :stockId")
     suspend fun getStockById(stockId: String): StockHoldingEntity?
 
-    @Query("SELECT * FROM stocks WHERE id = :stockId")
-    fun getStockByIdDirect(stockId: String): StockHoldingEntity?
+    @Query("SELECT * FROM stocks WHERE ticker = :ticker AND portfolioId = :portfolioId")
+    suspend fun getStockByTicker(ticker: String, portfolioId: String): StockHoldingEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStock(stock: StockHoldingEntity)
@@ -134,7 +166,6 @@ interface StockDao {
     @Update
     suspend fun updateStock(stock: StockHoldingEntity)
 
-    // *** 新增：根据股票ID查询所有交易 ***
     @Query("SELECT * FROM transactions WHERE stockId = :stockId")
     suspend fun getTransactionsByStockId(stockId: String): List<TransactionEntity>
 
@@ -151,49 +182,63 @@ interface StockDao {
     suspend fun deleteTransactionById(transactionId: String)
 }
 
-// ... (CashDao remains the same) ...
 @Dao
 interface CashDao {
-    @Query("SELECT * FROM cash_transactions ORDER BY date DESC")
-    fun getAllCashTransactions(): Flow<List<CashTransactionEntity>>
+    @Query("SELECT * FROM cash_transactions WHERE portfolioId = :portfolioId ORDER BY date DESC")
+    fun getCashTransactionsByPortfolio(portfolioId: String): Flow<List<CashTransactionEntity>>
 
-    // *** 修改：使用 REPLACE 策略，使其可以用于更新 ***
+    @Query("SELECT * FROM cash_transactions")
+    fun getCashTransactionsByAllPortfolios(): Flow<List<CashTransactionEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCashTransaction(transaction: CashTransactionEntity)
 
     @Query("DELETE FROM cash_transactions WHERE stockTransactionId = :stockTransactionId")
     suspend fun deleteByStockTransactionId(stockTransactionId: String)
 
-    // *** 新增：按 ID 删除现金交易 ***
     @Query("DELETE FROM cash_transactions WHERE id = :transactionId")
     suspend fun deleteCashTransactionById(transactionId: String)
 }
 
-// *** 新增：投资组合设置 DAO ***
 @Dao
-interface PortfolioSettingsDao {
-    // ... (existing code in PortfolioSettingsDao) ...
-    @Query("SELECT name FROM portfolio_settings WHERE id = 1")
-    fun getPortfolioName(): Flow<String?>
+interface PortfolioDao {
+    @Query("SELECT * FROM portfolios")
+    fun getAllPortfolios(): Flow<List<PortfolioEntity>>
+
+    @Query("SELECT * FROM portfolios")
+    suspend fun getAllPortfoliosDirect(): List<PortfolioEntity>
+
+    @Query("SELECT * FROM portfolios WHERE id = :id")
+    suspend fun getPortfolioById(id: String): PortfolioEntity?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(setting: PortfolioSettingsEntity)
+    suspend fun insert(portfolio: PortfolioEntity)
+
+    @Update
+    suspend fun update(portfolio: PortfolioEntity)
+
+    @Delete
+    suspend fun delete(portfolio: PortfolioEntity)
+
+    @androidx.room.Transaction
+    @Query("SELECT * FROM portfolios")
+    fun getPortfoliosWithHoldings(): Flow<List<PortfolioWithHoldings>>
 }
 
 
 // 数据库
-// ... (Database definition and companion object remain the same) ...
-@Database(entities = [StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class, StockNameEntity::class, PortfolioSettingsEntity::class], version = 5)
+@Database(entities = [PortfolioEntity::class, StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class, StockNameEntity::class], version = 6)
 @TypeConverters(Converters::class)
 abstract class StockDatabase : RoomDatabase() {
     abstract fun stockDao(): StockDao
     abstract fun cashDao(): CashDao
     abstract fun stockNameDao(): StockNameDao
-    abstract fun portfolioSettingsDao(): PortfolioSettingsDao // *** 新增 PortfolioSettingsDao ***
+    abstract fun portfolioDao(): PortfolioDao
 
     companion object {
-        private const val DATABASE_NAME = "stock_database" // 数据库文件名
+        private const val DATABASE_NAME = "stock_tracker_v2.db" // 更改数据库名称以触发重新创建或手动迁移
         private const val TAG = "StockDatabase"
+        const val DEFAULT_PORTFOLIO_ID = "default_portfolio"
 
         @Volatile
         private var INSTANCE: StockDatabase? = null
@@ -215,21 +260,19 @@ abstract class StockDatabase : RoomDatabase() {
                                     // prePopulateSampleData(database)
                                     // *** 预填充股票名称数据和默认组合名称 ***
                                     runBlocking {
-                                        database.portfolioSettingsDao().insert(PortfolioSettingsEntity(name = "我的投资组合"))
+                                        database.portfolioDao().insert(PortfolioEntity(id = DEFAULT_PORTFOLIO_ID, name = "我的投资组合"))
                                     }
                                     prePopulateStockNames(context, database)
                                 }
                             }
                         }
-                        // 如果需要，可以在 onOpen 中也添加填充逻辑，以处理数据库已存在但表为空的情况
                         override fun onOpen(db: SupportSQLiteDatabase) {
                             super.onOpen(db)
-                            // 确保默认组合名称存在（如果用户没有修改过）
                             Executors.newSingleThreadExecutor().execute {
                                 runBlocking {
-                                    val name = INSTANCE?.portfolioSettingsDao()?.getPortfolioName()?.firstOrNull()
-                                    if (name == null || name.isBlank()) {
-                                        INSTANCE?.portfolioSettingsDao()?.insert(PortfolioSettingsEntity(name = "我的投资组合"))
+                                    val portfolio = INSTANCE?.portfolioDao()?.getPortfolioById(DEFAULT_PORTFOLIO_ID)
+                                    if (portfolio == null) {
+                                        INSTANCE?.portfolioDao()?.insert(PortfolioEntity(id = DEFAULT_PORTFOLIO_ID, name = "我的投资组合"))
                                     }
                                 }
                             }
@@ -246,7 +289,7 @@ abstract class StockDatabase : RoomDatabase() {
         private fun prePopulateSampleData(database: StockDatabase) {
             runBlocking {
                 SampleData.holdings.forEach{ stock ->
-                    database.stockDao().insertStock(stock.toEntity())
+                    database.stockDao().insertStock(stock.toEntity(DEFAULT_PORTFOLIO_ID))
                     stock.transactions.forEach { trans ->
                         database.stockDao().insertTransaction(trans.toEntity(stock.id))
                     }

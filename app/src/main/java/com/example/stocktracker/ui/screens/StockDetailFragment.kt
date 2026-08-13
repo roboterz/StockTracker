@@ -14,7 +14,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.activityViewModels
+import androidx.navigation.navGraphViewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -35,8 +35,10 @@ class StockDetailFragment : Fragment() {
     private var _binding: FragmentStockDetailBinding? = null
     private val binding get() = _binding!!
 
-    private val viewModel: StockViewModel by activityViewModels {
-        StockViewModelFactory(requireActivity().application)
+    private val viewModel: StockViewModel by navGraphViewModels(R.id.portfolio_graph) {
+        val navBackStackEntry = findNavController().getBackStackEntry(R.id.portfolio_graph)
+        val portfolioId = navBackStackEntry.arguments?.getString("portfolioId") ?: ""
+        StockViewModelFactory(requireActivity().application, portfolioId)
     }
 
     // *** 新增：CSV 文件选择器启动器 ***

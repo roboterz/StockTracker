@@ -32,6 +32,10 @@ object YahooFinanceScraper {
         }
     }
 
+    fun extractTicker(id: String): String {
+        return id.substringBefore('_')
+    }
+
     fun fetchStockData(ticker: String): ScrapedData? {
         // *** 修改：使用 safeTicker 处理 ticker ***
         val encodedTicker = safeTicker(ticker)

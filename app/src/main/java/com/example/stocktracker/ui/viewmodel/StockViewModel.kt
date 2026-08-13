@@ -11,7 +11,7 @@ import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.StockHolding
 import com.example.stocktracker.data.Transaction
 import com.example.stocktracker.data.TransactionType
-import com.example.stocktracker.data.database.PortfolioSettingsEntity
+import com.example.stocktracker.data.database.PortfolioEntity
 import com.example.stocktracker.data.database.StockDatabase
 import com.example.stocktracker.data.database.StockNameEntity
 import com.example.stocktracker.data.toEntity
@@ -73,13 +73,13 @@ data class StockUiState(
 }
 
 
-class StockViewModel(application: Application) : ViewModel() {
+class StockViewModel(application: Application, private val portfolioId: String) : ViewModel() {
     private val appContext = application.applicationContext
     private val db = StockDatabase.getDatabase(application)
     private val stockDao = db.stockDao()
     private val cashDao = db.cashDao()
     private val stockNameDao = db.stockNameDao()
-    private val portfolioSettingsDao = db.portfolioSettingsDao()
+    private val portfolioDao = db.portfolioDao()
 
     private val _uiState = MutableStateFlow(StockUiState())
     val uiState: StateFlow<StockUiState> = _uiState.asStateFlow()
@@ -103,9 +103,11 @@ class StockViewModel(application: Application) : ViewModel() {
     private val TAG = "StockViewModel"
 
     init {
-        val holdingsFlow = stockDao.getAllStocksWithTransactions().map { list -> list.map { it.toUIModel() } }
-        val cashFlow = cashDao.getAllCashTransactions().map { list -> list.map { it.toUIModel() } }
-        val nameFlow = portfolioSettingsDao.getPortfolioName().map { it ?: "我的投资组合" }
+        val holdingsFlow = stockDao.getStocksWithTransactionsByPortfolio(portfolioId).map { list -> list.map { it.toUIModel() } }
+        val cashFlow = cashDao.getCashTransactionsByPortfolio(portfolioId).map { list -> list.map { it.toUIModel() } }
+        val nameFlow = portfolioDao.getAllPortfolios().map { list ->
+            list.find { it.id == portfolioId }?.name ?: "我的投资组合"
+        }.distinctUntilChanged()
 
         viewModelScope.launch(Dispatchers.IO) {
             combine(holdingsFlow, cashFlow, _priceDataFlow, nameFlow) { holdingsFromDb, cashTransactions, priceDataMap, portfolioName ->
@@ -126,7 +128,8 @@ class StockViewModel(application: Application) : ViewModel() {
                 }.sortedByDescending { it.transactions.maxOfOrNull { t -> t.date } }
 
                 val finalActiveHoldings = activeHoldingsFromDb.map { dbHolding ->
-                    priceDataMap[dbHolding.id]?.let { prices ->
+                    val ticker = YahooFinanceScraper.extractTicker(dbHolding.id)
+                    priceDataMap[ticker]?.let { prices ->
                         val today = LocalDate.now()
                         val overnightQuantity = dbHolding.getQuantityOnDate(today.minusDays(1))
                         val overnightValueAtClose = overnightQuantity * prices.previousClose
@@ -211,13 +214,15 @@ class StockViewModel(application: Application) : ViewModel() {
 
                 val deferredJobs = holdingsToRefresh.map { holding ->
                     async(Dispatchers.IO) {
-                        val dbName = stockNameDao.getChineseNameByTicker(holding.id.uppercase())
-                        val priceData = YahooFinanceScraper.fetchStockData(holding.id)
+                        val ticker = YahooFinanceScraper.extractTicker(holding.id)
+                        Log.d(TAG, "Refreshing stock: ID=${holding.id}, Ticker=$ticker")
+                        val dbName = stockNameDao.getChineseNameByTicker(ticker.uppercase())
+                        val priceData = YahooFinanceScraper.fetchStockData(ticker)
                         val finalName = dbName ?: priceData?.name ?: holding.name
 
                         val firstTransactionDate = holding.transactions.minOfOrNull { it.date }
-                        val dividendHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchDividendHistory(holding.id, firstTransactionDate) else null
-                        val splitHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchSplitHistory(holding.id, firstTransactionDate) else null
+                        val dividendHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchDividendHistory(ticker, firstTransactionDate) else null
+                        val splitHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchSplitHistory(ticker, firstTransactionDate) else null
 
                         object {
                             val holding = holding.copy(name = finalName)
@@ -261,42 +266,43 @@ class StockViewModel(application: Application) : ViewModel() {
                         }
                     }
 
-                    // 3. 核心：按日期排序，同日 SPLIT 优先
-                    val sortedPending = pendingTransactions.sortedWith(
-                        compareBy<Transaction> { it.date }.thenBy { if (it.type == TransactionType.SPLIT) 0 else 1 }
-                    )
+                        // 3. 核心：按日期排序，同日 SPLIT 优先
+                        val sortedPending = pendingTransactions.sortedWith(
+                            compareBy<Transaction> { it.date }.thenBy { if (it.type == TransactionType.SPLIT) 0 else 1 }
+                        )
 
-                    // 4. 逐条插入并更新持仓状态
-                    sortedPending.forEach { t ->
-                        // 重新从数据库获取最新的 stock 状态，确保 getQuantityOnDate 准确
-                        val stockWithTransactions = stockDao.getAllStocksWithTransactions().firstOrNull()?.find { it.stock.id == data.holding.id } ?: return@forEach
-                        val currentHolding = stockWithTransactions.toUIModel()
+                        // 4. 逐条插入并更新持仓状态
+                        sortedPending.forEach { t ->
+                            // 重新从数据库获取最新的 stock 状态，确保 getQuantityOnDate 准确
+                            val stockWithTransactions = stockDao.getStocksWithTransactionsByPortfolio(portfolioId).firstOrNull()?.find { it.stock.id == data.holding.id } ?: return@forEach
+                            val currentHolding = stockWithTransactions.toUIModel()
 
-                        val transactionToSave = if (t.type == TransactionType.DIVIDEND) {
-                            // 分红需要计算除息日前的股数
-                            val sharesOnDate = currentHolding.getQuantityOnDate(t.date.minusDays(1))
-                            if (sharesOnDate.absoluteValue > 1e-9) {
-                                t.copy(quantity = sharesOnDate)
-                            } else null
-                        } else t
+                            val transactionToSave = if (t.type == TransactionType.DIVIDEND) {
+                                // 分红需要计算除息日前的股数
+                                val sharesOnDate = currentHolding.getQuantityOnDate(t.date.minusDays(1))
+                                if (sharesOnDate.absoluteValue > 1e-9) {
+                                    t.copy(quantity = sharesOnDate)
+                                } else null
+                            } else t
 
-                        transactionToSave?.let {
-                            saveOrUpdateTransactionInternal(it, data.holding.id, "", data.holding.name, data.priceData?.exchangeName)
+                            transactionToSave?.let {
+                                saveOrUpdateTransactionInternal(it, data.holding.id, "", data.holding.name, data.priceData?.exchangeName)
+                            }
                         }
                     }
-                }
 
                 results.forEach { data ->
                     data.priceData?.let {
                         successfulFetches++
+                        val ticker = YahooFinanceScraper.extractTicker(data.holding.id)
                         val formattedExchange = YahooFinanceScraper.formatExchangeName(it.exchangeName)
-                        val displayTicker = "$formattedExchange:${data.holding.id}"
-                        stockDao.updateStock(data.holding.toEntity().copy(
+                        val displayTicker = "$formattedExchange:$ticker"
+                        stockDao.updateStock(data.holding.toEntity(portfolioId).copy(
                             currentPrice = it.currentPrice,
                             name = data.holding.name,
                             ticker = displayTicker
                         ))
-                        newPriceData[data.holding.id] = it
+                        newPriceData[ticker] = it
                     }
                 }
 
@@ -347,9 +353,9 @@ class StockViewModel(application: Application) : ViewModel() {
      * 核心计算逻辑：计算投资组合的历史盈亏率，以及基准指数的涨跌幅。
      * *** 修改返回值：包含 Portfolio 和 Benchmark 数据的 Pair ***
      */
-    private suspend fun calculatePortfolioHistory(timeRange: TimeRange): Pair<List<StockUiState.ChartDataPoint>, List<StockUiState.ChartDataPoint>> = withContext(Dispatchers.Default) {
-        val allStockTransactions = stockDao.getAllStocksWithTransactions().first().map { it.toUIModel() }
-        val allCashTransactions = cashDao.getAllCashTransactions().first().map { it.toUIModel() }
+    suspend fun calculatePortfolioHistory(timeRange: TimeRange): Pair<List<StockUiState.ChartDataPoint>, List<StockUiState.ChartDataPoint>> = withContext(Dispatchers.Default) {
+        val allStockTransactions = stockDao.getStocksWithTransactionsByPortfolio(portfolioId).first().map { it.toUIModel() }
+        val allCashTransactions = cashDao.getCashTransactionsByPortfolio(portfolioId).first().map { it.toUIModel() }
 
         if (allStockTransactions.isEmpty() && allCashTransactions.isEmpty()) {
             return@withContext Pair(emptyList(), emptyList())
@@ -368,7 +374,7 @@ class StockViewModel(application: Application) : ViewModel() {
 
         val startDate = getStartDateForTimeRange(timeRange, portfolioStartDate, today)
         // *** 1. 准备 Ticker 列表，加入基准指数 ***
-        val portfolioTickers = allStockTransactions.map { it.id }.distinct()
+        val portfolioTickers = allStockTransactions.map { YahooFinanceScraper.extractTicker(it.id) }.distinct()
         val allTickers = portfolioTickers + BENCHMARK_TICKER
 
         // *** 2. 并发获取所有需要的历史价格（包括基准） ***
@@ -432,14 +438,15 @@ class StockViewModel(application: Application) : ViewModel() {
 
                 totalNetInvestment += stockNetCost
 
-                val stockPriceMap = priceCache[stock.id]
+                val ticker = YahooFinanceScraper.extractTicker(stock.id)
+                val stockPriceMap = priceCache[ticker]
                 val priceOnDate = stockPriceMap?.get(currentDate)
 
                 val priceToUse = if (priceOnDate != null) {
-                    lastValidPriceMap = lastValidPriceMap.plus(stock.id to priceOnDate)
+                    lastValidPriceMap = lastValidPriceMap.plus(ticker to priceOnDate)
                     priceOnDate
                 } else {
-                    lastValidPriceMap[stock.id] ?: 0.0
+                    lastValidPriceMap[ticker] ?: 0.0
                 }
 
                 totalMarketValue += quantityHeld * priceToUse
@@ -568,8 +575,14 @@ class StockViewModel(application: Application) : ViewModel() {
         stockName: String,
         exchangeName: String?
     ) {
-        val idToProcess = (stockId ?: newStockIdentifier).uppercase()
-        if (idToProcess.isBlank()) return
+        val rawTicker = if (!stockId.isNullOrBlank()) {
+            YahooFinanceScraper.extractTicker(stockId)
+        } else {
+            newStockIdentifier
+        }.uppercase()
+
+        if (rawTicker.isBlank()) return
+        val stockIdToUse = "${rawTicker}_$portfolioId"
 
         val originalTransaction = _uiState.value.transactionToEdit
         if (originalTransaction != null) {
@@ -577,20 +590,20 @@ class StockViewModel(application: Application) : ViewModel() {
         }
 
 
-        val existingStock = stockDao.getStockById(idToProcess)
+        val existingStock = stockDao.getStockById(stockIdToUse)
         if (existingStock != null) {
             stockDao.updateStock(existingStock.copy(name = stockName))
-            stockDao.insertTransaction(transaction.toEntity(idToProcess))
+            stockDao.insertTransaction(transaction.toEntity(stockIdToUse))
         } else {
             val formattedExchange = YahooFinanceScraper.formatExchangeName(exchangeName ?: "")
-            val displayTicker = if (formattedExchange.isNotBlank()) "$formattedExchange:$idToProcess" else idToProcess
+            val displayTicker = if (formattedExchange.isNotBlank()) "$formattedExchange:$rawTicker" else rawTicker
 
             val newStock = StockHolding(
-                id = idToProcess, name = stockName,
+                id = stockIdToUse, name = stockName,
                 ticker = displayTicker,
                 currentPrice = transaction.price, transactions = emptyList()
             )
-            stockDao.insertStock(newStock.toEntity())
+            stockDao.insertStock(newStock.toEntity(portfolioId))
             stockDao.insertTransaction(transaction.toEntity(newStock.id))
         }
 
@@ -625,14 +638,14 @@ class StockViewModel(application: Application) : ViewModel() {
                 amount = finalAmount.absoluteValue,
                 stockTransactionId = transaction.id
             )
-            cashDao.insertCashTransaction(cashTransaction.toEntity())
+            cashDao.insertCashTransaction(cashTransaction.toEntity(portfolioId))
         }
     }
 
     fun savePortfolioName(name: String) {
         viewModelScope.launch(Dispatchers.IO) {
             if (name.isNotBlank()) {
-                portfolioSettingsDao.insert(PortfolioSettingsEntity(name = name))
+                portfolioDao.update(PortfolioEntity(id = portfolioId, name = name))
             } else {
                 _toastEvents.emit("投资组合名称不能为空")
             }
@@ -654,7 +667,7 @@ class StockViewModel(application: Application) : ViewModel() {
                 return@launch
             }
             val cashTransaction = CashTransaction(date = date, type = type, amount = amount)
-            cashDao.insertCashTransaction(cashTransaction.toEntity())
+            cashDao.insertCashTransaction(cashTransaction.toEntity(portfolioId))
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }
@@ -665,7 +678,7 @@ class StockViewModel(application: Application) : ViewModel() {
                 _toastEvents.emit("金额必须大于0")
                 return@launch
             }
-            cashDao.insertCashTransaction(transaction.toEntity())
+            cashDao.insertCashTransaction(transaction.toEntity(portfolioId))
             _navigationEvents.emit(NavigationEvent.NavigateBack)
         }
     }
@@ -822,11 +835,11 @@ class StockViewModel(application: Application) : ViewModel() {
     }
 }
 
-class StockViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
+class StockViewModelFactory(private val application: Application, private val portfolioId: String) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(StockViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return StockViewModel(application) as T
+            return StockViewModel(application, portfolioId) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
