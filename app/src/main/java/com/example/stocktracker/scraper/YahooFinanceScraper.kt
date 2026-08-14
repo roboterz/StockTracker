@@ -33,7 +33,7 @@ object YahooFinanceScraper {
     }
 
     fun extractTicker(id: String): String {
-        return id.substringBefore('_')
+        return id.substringAfter(':').substringBefore('_')
     }
 
     fun fetchStockData(ticker: String): ScrapedData? {

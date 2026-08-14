@@ -46,8 +46,7 @@ fun CashTransactionEntity.toUIModel(): CashTransaction {
 
 
 fun StockHolding.toEntity(portfolioId: String): StockHoldingEntity {
-    val rawTicker = com.example.stocktracker.scraper.YahooFinanceScraper.extractTicker(id)
-    return StockHoldingEntity(id, portfolioId, name, ticker, rawTicker, currentPrice)
+    return StockHoldingEntity(id, portfolioId, name, ticker, currentPrice)
 }
 
 fun Transaction.toEntity(ticker: String, portfolioId: String): TransactionEntity {

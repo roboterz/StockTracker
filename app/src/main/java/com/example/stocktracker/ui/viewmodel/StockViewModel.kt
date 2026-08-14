@@ -128,8 +128,8 @@ class StockViewModel(application: Application, private val portfolioId: String) 
                 }.sortedByDescending { it.transactions.maxOfOrNull { t -> t.date } }
 
                 val finalActiveHoldings = activeHoldingsFromDb.map { dbHolding ->
-                    val ticker = YahooFinanceScraper.extractTicker(dbHolding.id)
-                    priceDataMap[ticker]?.let { prices ->
+                    val rawTicker = dbHolding.id
+                    priceDataMap[rawTicker]?.let { prices ->
                         val today = LocalDate.now()
                         val overnightQuantity = dbHolding.getQuantityOnDate(today.minusDays(1))
                         val overnightValueAtClose = overnightQuantity * prices.previousClose
@@ -214,15 +214,16 @@ class StockViewModel(application: Application, private val portfolioId: String) 
 
                 val deferredJobs = holdingsToRefresh.map { holding ->
                     async(Dispatchers.IO) {
-                        val ticker = YahooFinanceScraper.extractTicker(holding.id)
-                        Log.d(TAG, "Refreshing stock: ID=${holding.id}, Ticker=$ticker")
-                        val dbName = stockNameDao.getChineseNameByTicker(ticker.uppercase())
-                        val priceData = YahooFinanceScraper.fetchStockData(ticker)
+                        val tickerForYahoo = holding.id // 使用纯代码进行网络请求
+                        val rawTicker = holding.id
+                        Log.d(TAG, "Refreshing stock: ID=${holding.id}, TickerForYahoo=$tickerForYahoo")
+                        val dbName = stockNameDao.getChineseNameByTicker(rawTicker.uppercase())
+                        val priceData = YahooFinanceScraper.fetchStockData(tickerForYahoo)
                         val finalName = dbName ?: priceData?.name ?: holding.name
 
                         val firstTransactionDate = holding.transactions.minOfOrNull { it.date }
-                        val dividendHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchDividendHistory(ticker, firstTransactionDate) else null
-                        val splitHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchSplitHistory(ticker, firstTransactionDate) else null
+                        val dividendHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchDividendHistory(tickerForYahoo, firstTransactionDate) else null
+                        val splitHistory = if (firstTransactionDate != null) YahooFinanceScraper.fetchSplitHistory(tickerForYahoo, firstTransactionDate) else null
 
                         object {
                             val holding = holding.copy(name = finalName)
@@ -575,14 +576,14 @@ class StockViewModel(application: Application, private val portfolioId: String) 
         stockName: String,
         exchangeName: String?
     ) {
-        val rawTicker = if (!stockId.isNullOrBlank()) {
-            YahooFinanceScraper.extractTicker(stockId)
-        } else {
-            newStockIdentifier
-        }.uppercase()
+        val rawTicker = YahooFinanceScraper.extractTicker(
+            if (!stockId.isNullOrBlank()) stockId else newStockIdentifier
+        ).uppercase()
 
         if (rawTicker.isBlank()) return
-        val stockIdToUse = "${rawTicker}_$portfolioId"
+        val formattedExchange = YahooFinanceScraper.formatExchangeName(exchangeName ?: "")
+        val displayTicker = if (formattedExchange.isNotBlank()) "$formattedExchange:$rawTicker" else rawTicker
+        val stockIdToUse = rawTicker
 
         val originalTransaction = _uiState.value.transactionToEdit
         if (originalTransaction != null) {
@@ -590,14 +591,11 @@ class StockViewModel(application: Application, private val portfolioId: String) 
         }
 
 
-        val existingStock = stockDao.getStockById(stockIdToUse)
+        val existingStock = stockDao.getStockById(stockIdToUse, portfolioId)
         if (existingStock != null) {
-            stockDao.updateStock(existingStock.copy(name = stockName))
+            stockDao.updateStock(existingStock.copy(name = stockName, ticker = displayTicker))
             stockDao.insertTransaction(transaction.toEntity(rawTicker, portfolioId))
         } else {
-            val formattedExchange = YahooFinanceScraper.formatExchangeName(exchangeName ?: "")
-            val displayTicker = if (formattedExchange.isNotBlank()) "$formattedExchange:$rawTicker" else rawTicker
-
             val newStock = StockHolding(
                 id = stockIdToUse, name = stockName,
                 ticker = displayTicker,
@@ -708,7 +706,7 @@ class StockViewModel(application: Application, private val portfolioId: String) 
                 val rawTicker = YahooFinanceScraper.extractTicker(stock.id)
                 val remainingTransactions = stockDao.getTransactionsByTicker(rawTicker, portfolioId)
                 if (remainingTransactions.isEmpty()) {
-                    stockDao.deleteStockById(stock.id)
+                    stockDao.deleteStockById(stock.id, portfolioId)
                     _uiState.update { it.copy(selectedStockId = null) }
                 }
 

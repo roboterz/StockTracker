@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import androidx.room.*
+import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.example.stocktracker.data.CashTransactionType
 import com.example.stocktracker.data.SampleData
@@ -30,6 +31,7 @@ data class PortfolioEntity(
 
 @Entity(
     tableName = "stocks",
+    primaryKeys = ["id", "portfolioId"],
     foreignKeys = [
         ForeignKey(
             entity = PortfolioEntity::class,
@@ -41,11 +43,10 @@ data class PortfolioEntity(
     indices = [Index(value = ["portfolioId"])]
 )
 data class StockHoldingEntity(
-    @PrimaryKey val id: String, // 使用 "ticker_portfolioId" 或 UUID
+    val id: String, // 纯股票代码 (e.g. AAPL)
     val portfolioId: String,
     val name: String,
-    val ticker: String, // 带有交易所前缀的显示用 ticker (e.g. NASDAQ:AAPL)
-    val rawTicker: String, // 纯股票代码 (e.g. AAPL)
+    val ticker: String, // 带有交易所前缀的代码 (e.g. NASDAQ:AAPL)
     val currentPrice: Double
 )
 
@@ -98,7 +99,7 @@ data class CashTransactionEntity(
 data class StockWithTransactions(
     @Embedded val stock: StockHoldingEntity,
     @Relation(
-        parentColumn = "rawTicker",
+        parentColumn = "id",
         entityColumn = "stockId"
     )
     val transactions: List<TransactionEntity>
@@ -163,8 +164,8 @@ interface StockDao {
     @Query("SELECT * FROM stocks WHERE portfolioId = :portfolioId")
     fun getStocksWithTransactionsByPortfolio(portfolioId: String): Flow<List<StockWithTransactions>>
 
-    @Query("SELECT * FROM stocks WHERE id = :stockId")
-    suspend fun getStockById(stockId: String): StockHoldingEntity?
+    @Query("SELECT * FROM stocks WHERE id = :stockId AND portfolioId = :portfolioId")
+    suspend fun getStockById(stockId: String, portfolioId: String): StockHoldingEntity?
 
     @Query("SELECT * FROM stocks WHERE ticker = :ticker AND portfolioId = :portfolioId")
     suspend fun getStockByTicker(ticker: String, portfolioId: String): StockHoldingEntity?
@@ -178,8 +179,8 @@ interface StockDao {
     @Query("SELECT * FROM transactions WHERE stockId = :ticker AND portfolioId = :portfolioId")
     suspend fun getTransactionsByTicker(ticker: String, portfolioId: String): List<TransactionEntity>
 
-    @Query("DELETE FROM stocks WHERE id = :stockId")
-    suspend fun deleteStockById(stockId: String)
+    @Query("DELETE FROM stocks WHERE id = :stockId AND portfolioId = :portfolioId")
+    suspend fun deleteStockById(stockId: String, portfolioId: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTransaction(transaction: TransactionEntity)
@@ -252,13 +253,60 @@ abstract class StockDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: StockDatabase? = null
 
+        private val MIGRATION_5_7 = object : Migration(5, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // 1. 创建 portfolios 表
+                database.execSQL("CREATE TABLE IF NOT EXISTS `portfolios` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, PRIMARY KEY(`id`))")
+                
+                // 2. 迁移旧的 portfolio_settings 到 portfolios (如果存在)，或插入默认值
+                // 注意：旧表名为 portfolio_settings
+                try {
+                    database.execSQL("INSERT OR IGNORE INTO portfolios (id, name) SELECT 'default_portfolio', name FROM portfolio_settings")
+                } catch (e: Exception) {
+                    Log.e(TAG, "portfolio_settings table might not exist", e)
+                }
+                database.execSQL("INSERT OR IGNORE INTO portfolios (id, name) VALUES ('default_portfolio', '我的投资组合')")
+
+                // 3. 迁移 stocks 表 (涉及主键变更，必须重建)
+                database.execSQL("CREATE TABLE IF NOT EXISTS `stocks_new` (`id` TEXT NOT NULL, `portfolioId` TEXT NOT NULL, `name` TEXT NOT NULL, `ticker` TEXT NOT NULL, `currentPrice` REAL NOT NULL, PRIMARY KEY(`id`, `portfolioId`), FOREIGN KEY(`portfolioId`) REFERENCES `portfolios`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )")
+                // 从 ticker 或 id 中截取纯代码作为新的 id
+                database.execSQL("INSERT OR REPLACE INTO stocks_new (id, portfolioId, name, ticker, currentPrice) SELECT CASE WHEN INSTR(ticker, ':') > 0 THEN SUBSTR(ticker, INSTR(ticker, ':') + 1) ELSE (CASE WHEN INSTR(id, '_') > 0 THEN SUBSTR(id, 1, INSTR(id, '_') - 1) ELSE id END) END, 'default_portfolio', name, ticker, currentPrice FROM stocks")
+                database.execSQL("DROP TABLE stocks")
+                database.execSQL("ALTER TABLE stocks_new RENAME TO stocks")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_stocks_portfolioId` ON `stocks` (`portfolioId`)")
+
+                // 4. 迁移 transactions 表 (增加 portfolioId 字段，并确保 stockId 是纯代码)
+                database.execSQL("CREATE TABLE IF NOT EXISTS `transactions_new` (`id` TEXT NOT NULL, `stockId` TEXT NOT NULL, `portfolioId` TEXT NOT NULL, `date` INTEGER NOT NULL, `type` TEXT NOT NULL, `quantity` REAL NOT NULL, `price` REAL NOT NULL, `fee` REAL NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`portfolioId`) REFERENCES `portfolios`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )")
+                // 清洗 stockId：优先处理 ':' (交易所前缀)，否则处理 '_' (旧版 portfolioId 后缀)
+                database.execSQL("INSERT INTO transactions_new (id, stockId, portfolioId, date, type, quantity, price, fee) SELECT id, CASE WHEN INSTR(stockId, ':') > 0 THEN SUBSTR(stockId, INSTR(stockId, ':') + 1) ELSE (CASE WHEN INSTR(stockId, '_') > 0 THEN SUBSTR(stockId, 1, INSTR(stockId, '_') - 1) ELSE stockId END) END, 'default_portfolio', date, type, quantity, price, fee FROM transactions")
+                database.execSQL("DROP TABLE transactions")
+                database.execSQL("ALTER TABLE transactions_new RENAME TO transactions")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_portfolioId` ON `transactions` (`portfolioId`)")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_transactions_stockId` ON `transactions` (`stockId`)")
+
+                // 5. 迁移 cash_transactions 表 (增加 portfolioId 字段)
+                database.execSQL("CREATE TABLE IF NOT EXISTS `cash_transactions_new` (`id` TEXT NOT NULL, `portfolioId` TEXT NOT NULL, `date` INTEGER NOT NULL, `type` TEXT NOT NULL, `amount` REAL NOT NULL, `stockTransactionId` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`portfolioId`) REFERENCES `portfolios`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )")
+                database.execSQL("INSERT INTO cash_transactions_new (id, portfolioId, date, type, amount, stockTransactionId) SELECT id, 'default_portfolio', date, type, amount, stockTransactionId FROM cash_transactions")
+                database.execSQL("DROP TABLE cash_transactions")
+                database.execSQL("ALTER TABLE cash_transactions_new RENAME TO cash_transactions")
+                database.execSQL("CREATE INDEX IF NOT EXISTS `index_cash_transactions_portfolioId` ON `cash_transactions` (`portfolioId`)")
+
+                // 6. 删除旧的 portfolio_settings 表
+                database.execSQL("DROP TABLE IF EXISTS portfolio_settings")
+            }
+        }
+
         fun getDatabase(context: Context): StockDatabase {
             return INSTANCE ?: synchronized(this) {
+                // 优先执行文件迁移
+                migrateDatabaseFileIfNeeded(context)
+
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     StockDatabase::class.java,
                     DATABASE_NAME
                 )
+                    .addMigrations(MIGRATION_5_7) // 添加迁移
                     .addCallback(object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {
                             super.onCreate(db)
@@ -356,6 +404,25 @@ abstract class StockDatabase : RoomDatabase() {
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Error executing WAL Checkpoint: ${e.message}", e)
+            }
+        }
+
+        private fun migrateDatabaseFileIfNeeded(context: Context) {
+            val oldDbFile = context.getDatabasePath("stock_database")
+            val newDbFile = context.getDatabasePath(DATABASE_NAME)
+            if (oldDbFile.exists() && !newDbFile.exists()) {
+                Log.i(TAG, "Migrating old database file to new location: ${oldDbFile.absolutePath} -> ${newDbFile.absolutePath}")
+                
+                // 重命名主文件
+                oldDbFile.renameTo(newDbFile)
+                
+                // 重命名附属文件
+                val oldWal = File(oldDbFile.path + "-wal")
+                if (oldWal.exists()) oldWal.renameTo(File(newDbFile.path + "-wal"))
+                val oldShm = File(oldDbFile.path + "-shm")
+                if (oldShm.exists()) oldShm.renameTo(File(newDbFile.path + "-shm"))
+                val oldJournal = File(oldDbFile.path + "-journal")
+                if (oldJournal.exists()) oldJournal.renameTo(File(newDbFile.path + "-journal"))
             }
         }
         // *** 新增结束 ***
