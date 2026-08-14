@@ -36,7 +36,7 @@ class PortfolioListAdapter(
 
         fun bind(summary: PortfolioSummary) {
             binding.textViewPortfolioName.text = summary.portfolio.name
-            binding.textViewTotalValue.text = formatCurrency(summary.totalMarketValue, false)
+            binding.textViewTotalValue.text = "$${formatCurrency(summary.totalMarketValue, false)}"
 
             binding.textViewDailyPL.text = "${formatCurrency(summary.dailyPL, true)} (${String.format("%+.2f%%", summary.dailyPLPercent)})"
             binding.textViewTotalPL.text = "${formatCurrency(summary.totalPL, true)} (${String.format("%+.2f%%", summary.totalPLPercent)})"
