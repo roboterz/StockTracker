@@ -44,26 +44,29 @@ data class StockHoldingEntity(
     @PrimaryKey val id: String, // 使用 "ticker_portfolioId" 或 UUID
     val portfolioId: String,
     val name: String,
-    val ticker: String,
+    val ticker: String, // 带有交易所前缀的显示用 ticker (e.g. NASDAQ:AAPL)
+    val rawTicker: String, // 纯股票代码 (e.g. AAPL)
     val currentPrice: Double
 )
 
 @Entity(
     tableName = "transactions",
-    foreignKeys = [ForeignKey(
-        entity = StockHoldingEntity::class,
-        parentColumns = ["id"],
-        childColumns = ["stockId"],
-        onDelete = ForeignKey.CASCADE
-    )],
-    indices = [Index(value = ["stockId"])]
+    foreignKeys = [
+        ForeignKey(
+            entity = PortfolioEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["portfolioId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["portfolioId"]), Index(value = ["stockId"])]
 )
 data class TransactionEntity(
     @PrimaryKey val id: String,
-    val stockId: String,
+    val stockId: String, // 仅保存股票代码 (Ticker)
+    val portfolioId: String, // 归属的投资组合 ID
     val date: LocalDate,
     val type: TransactionType,
-    // *** 关键修复：将 quantity 类型改为 Double ***
     val quantity: Double,
     val price: Double,
     val fee: Double
@@ -95,11 +98,17 @@ data class CashTransactionEntity(
 data class StockWithTransactions(
     @Embedded val stock: StockHoldingEntity,
     @Relation(
-        parentColumn = "id",
+        parentColumn = "rawTicker",
         entityColumn = "stockId"
     )
     val transactions: List<TransactionEntity>
-)
+) {
+    // 由于 Room 的 @Relation 在处理复合关联时有限制，
+    // 我们在转换层或此处确保过滤掉不属于当前投资组合的交易
+    fun getFilteredTransactions(): List<TransactionEntity> {
+        return transactions.filter { it.portfolioId == stock.portfolioId }
+    }
+}
 
 data class PortfolioWithHoldings(
     @Embedded val portfolio: PortfolioEntity,
@@ -166,8 +175,8 @@ interface StockDao {
     @Update
     suspend fun updateStock(stock: StockHoldingEntity)
 
-    @Query("SELECT * FROM transactions WHERE stockId = :stockId")
-    suspend fun getTransactionsByStockId(stockId: String): List<TransactionEntity>
+    @Query("SELECT * FROM transactions WHERE stockId = :ticker AND portfolioId = :portfolioId")
+    suspend fun getTransactionsByTicker(ticker: String, portfolioId: String): List<TransactionEntity>
 
     @Query("DELETE FROM stocks WHERE id = :stockId")
     suspend fun deleteStockById(stockId: String)
@@ -227,7 +236,7 @@ interface PortfolioDao {
 
 
 // 数据库
-@Database(entities = [PortfolioEntity::class, StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class, StockNameEntity::class], version = 6)
+@Database(entities = [PortfolioEntity::class, StockHoldingEntity::class, TransactionEntity::class, CashTransactionEntity::class, StockNameEntity::class], version = 7)
 @TypeConverters(Converters::class)
 abstract class StockDatabase : RoomDatabase() {
     abstract fun stockDao(): StockDao
@@ -289,9 +298,13 @@ abstract class StockDatabase : RoomDatabase() {
         private fun prePopulateSampleData(database: StockDatabase) {
             runBlocking {
                 SampleData.holdings.forEach{ stock ->
-                    database.stockDao().insertStock(stock.toEntity(DEFAULT_PORTFOLIO_ID))
+                    // 统一使用纯代码作为基础，构造一致的 ID
+                    val pureTicker = stock.ticker.substringAfter(':')
+                    val stockIdWithPortfolio = "${pureTicker}_$DEFAULT_PORTFOLIO_ID"
+                    
+                    database.stockDao().insertStock(stock.copy(id = stockIdWithPortfolio).toEntity(DEFAULT_PORTFOLIO_ID))
                     stock.transactions.forEach { trans ->
-                        database.stockDao().insertTransaction(trans.toEntity(stock.id))
+                        database.stockDao().insertTransaction(trans.toEntity(pureTicker, DEFAULT_PORTFOLIO_ID))
                     }
                 }
             }
