@@ -130,7 +130,7 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="买入"
+                    android:text="@string/transaction_buy"
                     android:textColor="@color/toggle_button_text_color"
                     app:backgroundTint="@color/toggle_button_background_tint"
                     />
@@ -141,7 +141,29 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="卖出"
+                    android:text="@string/transaction_sell"
+                    android:textColor="@color/toggle_button_text_color"
+                    app:backgroundTint="@color/toggle_button_background_tint"
+                    />
+
+                <Button
+                    android:id="@+id/button_dividend"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/transaction_dividend"
+                    android:textColor="@color/toggle_button_text_color"
+                    app:backgroundTint="@color/toggle_button_background_tint"
+                    />
+
+                <Button
+                    android:id="@+id/button_split"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/transaction_split"
                     android:textColor="@color/toggle_button_text_color"
                     app:backgroundTint="@color/toggle_button_background_tint"
                     />
@@ -149,6 +171,7 @@
 
             <!-- Input Fields -->
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/text_input_layout_date"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -166,11 +189,12 @@
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/text_input_layout_price"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:hint="价格"
+                android:hint="@string/hint_price"
                 android:textColorHint="@android:color/darker_gray">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -182,11 +206,12 @@
             </com.google.android.material.textfield.TextInputLayout>
 
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/text_input_layout_quantity"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:hint="数量"
+                android:hint="@string/hint_quantity"
                 android:textColorHint="@android:color/darker_gray">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -196,6 +221,7 @@
                     android:inputType="numberDecimal"
                     android:textColor="@android:color/white" />
             </com.google.android.material.textfield.TextInputLayout>
+
 
             <com.google.android.material.textfield.TextInputLayout
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"

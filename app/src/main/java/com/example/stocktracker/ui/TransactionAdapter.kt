@@ -27,10 +27,7 @@ class TransactionAdapter(private val onItemClicked: (Transaction) -> Unit) :
     override fun onBindViewHolder(holder: TransactionViewHolder, position: Int) {
         val current = getItem(position)
         holder.itemView.setOnClickListener {
-            // 只有买卖和分红记录可以编辑
-            if (current.type != TransactionType.SPLIT) {
-                onItemClicked(current)
-            }
+            onItemClicked(current)
         }
         holder.bind(current)
     }
@@ -49,7 +46,7 @@ class TransactionAdapter(private val onItemClicked: (Transaction) -> Unit) :
 
             when (transaction.type) {
                 TransactionType.BUY -> {
-                    binding.textViewType.text = "买入"
+                    binding.textViewType.text = itemView.context.getString(R.string.transaction_buy)
                     binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
                     binding.textViewQuantity.text = DecimalFormat("#.##").format(transaction.quantity).toString()
                     binding.textViewPrice.text = DecimalFormat("#.#####").format(transaction.price)  //String.format(Locale.US, "%.3f", transaction.price)
@@ -57,7 +54,7 @@ class TransactionAdapter(private val onItemClicked: (Transaction) -> Unit) :
                     binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.positive_green))
                 }
                 TransactionType.SELL -> {
-                    binding.textViewType.text = "卖出"
+                    binding.textViewType.text = itemView.context.getString(R.string.transaction_sell)
                     binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
                     binding.textViewQuantity.text = DecimalFormat("#.##").format(transaction.quantity).toString()
                     binding.textViewPrice.text = DecimalFormat("#.#####").format(transaction.price)  // String.format(Locale.US, "%.3f", transaction.price)
@@ -65,19 +62,23 @@ class TransactionAdapter(private val onItemClicked: (Transaction) -> Unit) :
                     binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.negative_red))
                 }
                 TransactionType.DIVIDEND -> {
-                    binding.textViewType.text = "分红"
+                    binding.textViewType.text = itemView.context.getString(R.string.transaction_dividend)
                     binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, R.color.dividend_gray))
                     binding.textViewQuantity.text = DecimalFormat("#.##").format(transaction.quantity).toString()
-                    binding.textViewPrice.text = String.format(Locale.US, "%.4f/股", transaction.price) // 每股分红
+                    binding.textViewPrice.text = String.format(Locale.US, itemView.context.getString(R.string.dividend_per_share_suffix), transaction.price) // 每股分红
                     binding.textViewAmount.text = formatCurrency(transaction.quantity * transaction.price, false)
                     binding.textViewAmount.setTextColor(ContextCompat.getColor(itemView.context, R.color.dividend_gray))
                 }
                 TransactionType.SPLIT -> {
                     val numerator = DecimalFormat("#.##").format(transaction.quantity)
-                    val denominator = transaction.price.toInt()
-                    val ratio = numerator.toDouble() / denominator
+                    val denominator = DecimalFormat("#.##").format(transaction.price)
+                    val ratio = transaction.quantity / transaction.price
 
-                    binding.textViewType.text = if (ratio > 1) "${ numerator}:${denominator} 拆股" else "${numerator}:${denominator} 合股"
+                    binding.textViewType.text = if (ratio > 1) {
+                        itemView.context.getString(R.string.transaction_split_desc, numerator, denominator)
+                    } else {
+                        itemView.context.getString(R.string.transaction_reverse_split_desc, numerator, denominator)
+                    }
                     binding.textViewType.setTextColor(ContextCompat.getColor(itemView.context, android.R.color.white))
                     binding.textViewType.textAlignment = View.TEXT_ALIGNMENT_CENTER
 

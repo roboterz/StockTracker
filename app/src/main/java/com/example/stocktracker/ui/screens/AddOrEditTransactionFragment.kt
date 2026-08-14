@@ -98,21 +98,46 @@ class AddOrEditTransactionFragment : Fragment() {
         }
 
         if (isEditMode) {
-            binding.buttonToggleGroup.check(if (transaction.type == TransactionType.BUY) binding.buttonBuy.id else binding.buttonSell.id)
+            val checkedId = when (transaction.type) {
+                TransactionType.BUY -> binding.buttonBuy.id
+                TransactionType.SELL -> binding.buttonSell.id
+                TransactionType.DIVIDEND -> binding.buttonDividend.id
+                TransactionType.SPLIT -> binding.buttonSplit.id
+            }
+            binding.buttonToggleGroup.check(checkedId)
+            updateLabels(transaction.type)
             binding.editTextPrice.setText(transaction.price.toString())
-            binding.editTextQuantity.setText(transaction.quantity.toInt().toString())
+            binding.editTextQuantity.setText(transaction.quantity.toString())
             binding.editTextFee.setText(transaction.fee.toString())
             // *** 修改：设置日期变量并更新文本 ***
             selectedDate = transaction.date
             binding.editTextDate.setText(selectedDate.format(dateFormatter))
         } else {
             binding.buttonToggleGroup.check(binding.buttonBuy.id)
+            updateLabels(TransactionType.BUY)
             if (!isNewStockMode) {
                 binding.editTextPrice.setText(stock.currentPrice.toString())
             }
             // *** 修改：设置日期变量并更新文本 ***
             selectedDate = LocalDate.now()
             binding.editTextDate.setText(selectedDate.format(dateFormatter))
+        }
+    }
+
+    private fun updateLabels(type: TransactionType) {
+        when (type) {
+            TransactionType.BUY, TransactionType.SELL -> {
+                binding.textInputLayoutPrice.hint = getString(R.string.hint_price)
+                binding.textInputLayoutQuantity.hint = getString(R.string.hint_quantity)
+            }
+            TransactionType.DIVIDEND -> {
+                binding.textInputLayoutPrice.hint = getString(R.string.hint_dividend_per_share)
+                binding.textInputLayoutQuantity.hint = getString(R.string.hint_holding_quantity)
+            }
+            TransactionType.SPLIT -> {
+                binding.textInputLayoutPrice.hint = getString(R.string.hint_split_old)
+                binding.textInputLayoutQuantity.hint = getString(R.string.hint_split_new)
+            }
         }
     }
 
@@ -170,7 +195,16 @@ class AddOrEditTransactionFragment : Fragment() {
         }
 
         binding.buttonToggleGroup.addOnButtonCheckedListener { group, checkedId, isChecked ->
-            if (!isChecked) {
+            if (isChecked) {
+                val type = when (checkedId) {
+                    binding.buttonBuy.id -> TransactionType.BUY
+                    binding.buttonSell.id -> TransactionType.SELL
+                    binding.buttonDividend.id -> TransactionType.DIVIDEND
+                    binding.buttonSplit.id -> TransactionType.SPLIT
+                    else -> TransactionType.BUY
+                }
+                updateLabels(type)
+            } else {
                 if (group.checkedButtonId == View.NO_ID) {
                     group.check(checkedId)
                 }
@@ -199,10 +233,18 @@ class AddOrEditTransactionFragment : Fragment() {
             return
         }
 
+        val transactionType = when (binding.buttonToggleGroup.checkedButtonId) {
+            binding.buttonBuy.id -> TransactionType.BUY
+            binding.buttonSell.id -> TransactionType.SELL
+            binding.buttonDividend.id -> TransactionType.DIVIDEND
+            binding.buttonSplit.id -> TransactionType.SPLIT
+            else -> TransactionType.BUY
+        }
+
         val transaction = Transaction(
             id = transactionToEdit?.id ?: UUID.randomUUID().toString(),
             date = selectedDate,
-            type = if (binding.buttonToggleGroup.checkedButtonId == binding.buttonBuy.id) TransactionType.BUY else TransactionType.SELL,
+            type = transactionType,
             quantity = quantity,
             price = price,
             fee = fee

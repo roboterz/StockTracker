@@ -8,4 +8,17 @@
     <string name="dialog_delete_cash_message">确定要删除这条现金交易记录吗？</string>
     <string name="dialog_confirm_delete">删除</string>
     <string name="dialog_cancel">取消</string>
+    <string name="transaction_buy">买入</string>
+    <string name="transaction_sell">卖出</string>
+    <string name="transaction_dividend">分红</string>
+    <string name="transaction_split">拆合</string>
+    <string name="hint_price">价格</string>
+    <string name="hint_quantity">数量</string>
+    <string name="hint_dividend_per_share">每股分红</string>
+    <string name="hint_holding_quantity">持仓数量</string>
+    <string name="hint_split_old">旧股数 (分母)</string>
+    <string name="hint_split_new">新股数 (分子)</string>
+    <string name="transaction_split_desc">%1$s:%2$s 拆股</string>
+    <string name="transaction_reverse_split_desc">%1$s:%2$s 合股</string>
+    <string name="dividend_per_share_suffix">%.4f/股</string>
 </resources>
