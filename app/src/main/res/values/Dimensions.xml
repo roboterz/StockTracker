@@ -2,4 +2,5 @@
 <resources>
     <!-- 用于对话框和UI的通用间距 -->
     <dimen name="edit_text_padding">24dp</dimen>
+    <dimen name="delete_button_width">80dp</dimen>
 </resources>

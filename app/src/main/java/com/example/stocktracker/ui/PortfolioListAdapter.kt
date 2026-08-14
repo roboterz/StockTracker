@@ -12,8 +12,21 @@ import com.example.stocktracker.databinding.ListItemPortfolioBinding
 import com.example.stocktracker.ui.components.formatCurrency
 
 class PortfolioListAdapter(
-    private val onPortfolioClick: (PortfolioSummary) -> Unit
+    private val onPortfolioClick: (PortfolioSummary) -> Unit,
+    private val onDeleteClick: (PortfolioSummary) -> Unit
 ) : ListAdapter<PortfolioSummary, PortfolioListAdapter.PortfolioViewHolder>(PortfolioDiffCallback()) {
+
+    private var openedPosition: Int = RecyclerView.NO_POSITION
+
+    fun setOpenedPosition(position: Int) {
+        if (openedPosition == position) return
+        val prev = openedPosition
+        openedPosition = position
+        if (prev != RecyclerView.NO_POSITION) notifyItemChanged(prev, PAYLOAD_REVEAL)
+        if (openedPosition != RecyclerView.NO_POSITION) notifyItemChanged(openedPosition, PAYLOAD_REVEAL)
+    }
+
+    fun getOpenedPosition() = openedPosition
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PortfolioViewHolder {
         val binding = ListItemPortfolioBinding.inflate(LayoutInflater.from(parent.context), parent, false)
@@ -21,20 +34,55 @@ class PortfolioListAdapter(
     }
 
     override fun onBindViewHolder(holder: PortfolioViewHolder, position: Int) {
-        holder.bind(getItem(position))
+        holder.bind(getItem(position), position == openedPosition)
     }
 
-    inner class PortfolioViewHolder(private val binding: ListItemPortfolioBinding) : RecyclerView.ViewHolder(binding.root) {
+    override fun onBindViewHolder(holder: PortfolioViewHolder, position: Int, payloads: MutableList<Any>) {
+        if (payloads.contains(PAYLOAD_REVEAL)) {
+            holder.updateRevealState(position == openedPosition)
+        } else {
+            super.onBindViewHolder(holder, position, payloads)
+        }
+    }
+
+    inner class PortfolioViewHolder(val binding: ListItemPortfolioBinding) : RecyclerView.ViewHolder(binding.root) {
         init {
-            binding.root.setOnClickListener {
-                val position = adapterPosition
+            binding.viewForeground.setOnClickListener {
+                val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
-                    onPortfolioClick(getItem(position))
+                    if (openedPosition != RecyclerView.NO_POSITION) {
+                        setOpenedPosition(RecyclerView.NO_POSITION)
+                    } else {
+                        onPortfolioClick(getItem(position))
+                    }
+                }
+            }
+            binding.buttonDelete.setOnClickListener {
+                val position = bindingAdapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    onDeleteClick(getItem(position))
                 }
             }
         }
 
-        fun bind(summary: PortfolioSummary) {
+        fun updateRevealState(isOpened: Boolean) {
+            val buttonWidth = itemView.resources.getDimensionPixelSize(R.dimen.delete_button_width).toFloat()
+            val revealDistance = buttonWidth + 12f
+            
+            if (isOpened) {
+                binding.viewForeground.translationX = -revealDistance
+                binding.buttonDeleteCard.translationX = 0f
+                binding.buttonDeleteCard.alpha = 1f
+            } else {
+                binding.viewForeground.translationX = 0f
+                binding.buttonDeleteCard.translationX = revealDistance
+                binding.buttonDeleteCard.alpha = 0f
+            }
+        }
+
+        fun bind(summary: PortfolioSummary, isOpened: Boolean) {
+            updateRevealState(isOpened)
+
             binding.textViewPortfolioName.text = summary.portfolio.name
             binding.textViewTotalValue.text = "$${formatCurrency(summary.totalMarketValue, false)}"
 
@@ -47,6 +95,10 @@ class PortfolioListAdapter(
             binding.textViewDailyPL.setTextColor(ContextCompat.getColor(itemView.context, dailyColor))
             binding.textViewTotalPL.setTextColor(ContextCompat.getColor(itemView.context, totalColor))
         }
+    }
+
+    companion object {
+        private const val PAYLOAD_REVEAL = "PAYLOAD_REVEAL"
     }
 
     class PortfolioDiffCallback : DiffUtil.ItemCallback<PortfolioSummary>() {
