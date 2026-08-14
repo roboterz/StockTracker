@@ -17,7 +17,7 @@ fun Portfolio.toEntity(): PortfolioEntity {
 }
 
 fun StockWithTransactions.toUIModel(): StockHolding {
-    val uiTransactions = transactions.map { it.toUIModel() }
+    val uiTransactions = getFilteredTransactions().map { it.toUIModel() }
     val cumulativeDividend = uiTransactions
         .filter { it.type == TransactionType.DIVIDEND }
         .sumOf { it.quantity * it.price }
@@ -46,11 +46,12 @@ fun CashTransactionEntity.toUIModel(): CashTransaction {
 
 
 fun StockHolding.toEntity(portfolioId: String): StockHoldingEntity {
-    return StockHoldingEntity(id, portfolioId, name, ticker, currentPrice)
+    val rawTicker = com.example.stocktracker.scraper.YahooFinanceScraper.extractTicker(id)
+    return StockHoldingEntity(id, portfolioId, name, ticker, rawTicker, currentPrice)
 }
 
-fun Transaction.toEntity(stockId: String): TransactionEntity {
-    return TransactionEntity(id, stockId, date, type, quantity, price, fee)
+fun Transaction.toEntity(ticker: String, portfolioId: String): TransactionEntity {
+    return TransactionEntity(id, ticker, portfolioId, date, type, quantity, price, fee)
 }
 
 // 新增：现金交易的映射函数
