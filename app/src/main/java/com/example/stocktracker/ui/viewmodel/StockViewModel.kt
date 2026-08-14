@@ -593,7 +593,7 @@ class StockViewModel(application: Application, private val portfolioId: String) 
         val existingStock = stockDao.getStockById(stockIdToUse)
         if (existingStock != null) {
             stockDao.updateStock(existingStock.copy(name = stockName))
-            stockDao.insertTransaction(transaction.toEntity(stockIdToUse))
+            stockDao.insertTransaction(transaction.toEntity(rawTicker, portfolioId))
         } else {
             val formattedExchange = YahooFinanceScraper.formatExchangeName(exchangeName ?: "")
             val displayTicker = if (formattedExchange.isNotBlank()) "$formattedExchange:$rawTicker" else rawTicker
@@ -604,7 +604,7 @@ class StockViewModel(application: Application, private val portfolioId: String) 
                 currentPrice = transaction.price, transactions = emptyList()
             )
             stockDao.insertStock(newStock.toEntity(portfolioId))
-            stockDao.insertTransaction(transaction.toEntity(newStock.id))
+            stockDao.insertTransaction(transaction.toEntity(rawTicker, portfolioId))
         }
 
         if (transaction.type == TransactionType.SPLIT) {
@@ -705,7 +705,8 @@ class StockViewModel(application: Application, private val portfolioId: String) 
                 stockDao.deleteTransactionById(transactionId)
                 cashDao.deleteByStockTransactionId(transactionId)
 
-                val remainingTransactions = stockDao.getTransactionsByStockId(stock.id)
+                val rawTicker = YahooFinanceScraper.extractTicker(stock.id)
+                val remainingTransactions = stockDao.getTransactionsByTicker(rawTicker, portfolioId)
                 if (remainingTransactions.isEmpty()) {
                     stockDao.deleteStockById(stock.id)
                     _uiState.update { it.copy(selectedStockId = null) }
