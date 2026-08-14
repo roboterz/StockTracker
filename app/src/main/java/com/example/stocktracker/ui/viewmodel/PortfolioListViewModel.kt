@@ -13,6 +13,8 @@ import com.example.stocktracker.data.database.StockDatabase
 import com.example.stocktracker.data.toUIModel
 import com.example.stocktracker.scraper.YahooFinanceScraper
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -30,10 +32,15 @@ class PortfolioListViewModel(application: Application) : AndroidViewModel(applic
     private val _priceDataFlow = MutableStateFlow<Map<String, YahooFinanceScraper.ScrapedData>>(emptyMap())
 
     init {
-        // 初始加载时刷新价格
+        // 监听持仓变化，当股票列表发生变化时自动刷新价格
         viewModelScope.launch {
-            portfolioDao.getPortfoliosWithHoldings().firstOrNull()?.let {
-                refreshAll()
+            var lastTickers = emptySet<String>()
+            portfolioDao.getPortfoliosWithHoldings().collect { portfolios ->
+                val currentTickers = portfolios.flatMap { it.holdings }.map { it.stock.id }.toSet()
+                if (currentTickers != lastTickers || (currentTickers.isNotEmpty() && _priceDataFlow.value.isEmpty())) {
+                    lastTickers = currentTickers
+                    refreshAll()
+                }
             }
         }
     }
@@ -80,27 +87,31 @@ class PortfolioListViewModel(application: Application) : AndroidViewModel(applic
         val today = LocalDate.now()
 
         holdings.forEach { holding ->
-            val ticker = YahooFinanceScraper.extractTicker(holding.id)
-            val prices = priceDataMap[ticker]
+            val tickerId = holding.id
+            val prices = priceDataMap[tickerId]
             val currentPrice = prices?.currentPrice ?: holding.currentPrice
             val marketValue = holding.totalQuantity * currentPrice
             
             totalStockValue += marketValue
             
             // Daily PL
-            if (prices != null && holding.totalQuantity > 0) {
+            if (prices != null) {
                 val overnightQuantity = holding.getQuantityOnDate(today.minusDays(1))
-                val overnightValueAtClose = overnightQuantity * prices.previousClose
+                val hasTransactionsToday = holding.transactions.any { it.date == today }
                 
-                var netCashInvestedToday = 0.0
-                holding.transactions.filter { it.date == today }.forEach { t ->
-                    if (t.type == TransactionType.BUY) netCashInvestedToday += (t.quantity * t.price) + t.fee
-                    if (t.type == TransactionType.SELL) netCashInvestedToday -= (t.quantity * t.price) - t.fee
+                if (overnightQuantity != 0.0 || hasTransactionsToday) {
+                    val overnightValueAtClose = overnightQuantity * prices.previousClose
+                    
+                    var netCashInvestedToday = 0.0
+                    holding.transactions.filter { it.date == today }.forEach { t ->
+                        if (t.type == TransactionType.BUY) netCashInvestedToday += (t.quantity * t.price) + t.fee
+                        if (t.type == TransactionType.SELL) netCashInvestedToday -= (t.quantity * t.price) - t.fee
+                    }
+                    
+                    val dailyPL = marketValue - overnightValueAtClose - netCashInvestedToday
+                    val todayDividend = holding.transactions.filter { it.date == today && it.type == TransactionType.DIVIDEND }.sumOf { it.quantity * it.price }
+                    totalDailyPL += (dailyPL + todayDividend)
                 }
-                
-                val dailyPL = marketValue - overnightValueAtClose - netCashInvestedToday
-                val todayDividend = holding.transactions.filter { it.date == today && it.type == TransactionType.DIVIDEND }.sumOf { it.quantity * it.price }
-                totalDailyPL += (dailyPL + todayDividend)
             }
             
             val updatedHolding = holding.copy(currentPrice = currentPrice)
@@ -124,19 +135,17 @@ class PortfolioListViewModel(application: Application) : AndroidViewModel(applic
 
     fun refreshAll() {
         if (_isRefreshing.value) return
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             _isRefreshing.value = true
             try {
                 val portfolios = portfolioDao.getPortfoliosWithHoldings().first()
-                val tickers = portfolios.flatMap { it.holdings }.map { YahooFinanceScraper.extractTicker(it.stock.id) }.distinct()
+                val tickers = portfolios.flatMap { it.holdings }.map { it.stock.id }.distinct()
                 Log.d("PortfolioListViewModel", "Refreshing all tickers: $tickers")
-                
-                val newPriceData = mutableMapOf<String, YahooFinanceScraper.ScrapedData>()
-                tickers.forEach { ticker ->
-                    YahooFinanceScraper.fetchStockData(ticker)?.let {
-                        newPriceData[ticker] = it
-                    }
-                }
+
+                val newPriceData = tickers.map { ticker ->
+                    async { ticker to YahooFinanceScraper.fetchStockData(ticker) }
+                }.awaitAll().filter { it.second != null }.associate { it.first to it.second!! }
+
                 _priceDataFlow.value = newPriceData
             } catch (e: Exception) {
                 Log.e("PortfolioListViewModel", "Refresh failed", e)
@@ -149,6 +158,12 @@ class PortfolioListViewModel(application: Application) : AndroidViewModel(applic
     fun addPortfolio(name: String) {
         viewModelScope.launch(Dispatchers.IO) {
             portfolioDao.insert(PortfolioEntity(name = name))
+        }
+    }
+
+    fun deletePortfolio(portfolio: Portfolio) {
+        viewModelScope.launch(Dispatchers.IO) {
+            portfolioDao.delete(PortfolioEntity(id = portfolio.id, name = portfolio.name))
         }
     }
 }
