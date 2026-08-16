@@ -1,6 +1,7 @@
 package com.example.stocktracker.ui.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,6 +29,9 @@ class PortfolioListViewModel(application: Application) : AndroidViewModel(applic
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    private val _toastEvents = MutableSharedFlow<String>()
+    val toastEvents = _toastEvents.asSharedFlow()
 
     private val _priceDataFlow = MutableStateFlow<Map<String, YahooFinanceScraper.ScrapedData>>(emptyMap())
 
@@ -164,6 +168,44 @@ class PortfolioListViewModel(application: Application) : AndroidViewModel(applic
     fun deletePortfolio(portfolio: Portfolio) {
         viewModelScope.launch(Dispatchers.IO) {
             portfolioDao.delete(PortfolioEntity(id = portfolio.id, name = portfolio.name))
+        }
+    }
+
+    fun exportDatabase(targetUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                StockDatabase.runCheckpoint(getApplication())
+                val filesCopied = StockDatabase.exportDatabase(getApplication(), targetUri)
+                if (filesCopied > 0) {
+                    _toastEvents.emit("数据库备份成功！文件已保存。")
+                } else {
+                    _toastEvents.emit("备份失败：未找到主数据库文件。")
+                }
+            } catch (e: Exception) {
+                Log.e("PortfolioListViewModel", "Database export failed", e)
+                _toastEvents.emit("备份失败：${e.localizedMessage}")
+            }
+        }
+    }
+
+    fun importDatabase(sourceUri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                _isRefreshing.value = true
+                val filesCopied = StockDatabase.importDatabase(getApplication(), sourceUri)
+                if (filesCopied > 0) {
+                    _priceDataFlow.value = emptyMap()
+                    _toastEvents.emit("数据库恢复成功！正在重新加载数据...")
+                    refreshAll()
+                } else {
+                    _toastEvents.emit("恢复失败：未找到备份文件或文件内容为空。")
+                }
+            } catch (e: Exception) {
+                Log.e("PortfolioListViewModel", "Database import failed", e)
+                _toastEvents.emit("恢复失败：${e.localizedMessage}")
+            } finally {
+                _isRefreshing.value = false
+            }
         }
     }
 }

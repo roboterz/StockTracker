@@ -8,10 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.Toast
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
@@ -46,16 +43,12 @@ class PortfolioFragment : Fragment() {
         StockViewModelFactory(requireActivity().application, portfolioId)
     }
 
-    private lateinit var exportDbLauncher: ActivityResultLauncher<String>
-    private lateinit var importDbLauncher: ActivityResultLauncher<Array<String>>
-
     private var selectedAssetType = AssetType.HOLDINGS
     private var portfolioAdapter: PortfolioAdapter? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setupDbLaunchers()
     }
 
     override fun onCreateView(
@@ -170,21 +163,6 @@ class PortfolioFragment : Fragment() {
     }
 
 
-    private fun setupDbLaunchers() {
-        exportDbLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
-            uri?.let {
-                viewModel.exportDatabase(it)
-            }
-        }
-
-        importDbLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-            uri?.let {
-                viewModel.importDatabase(it)
-            }
-            reStartApp()
-        }
-    }
-
     private fun setupToolbarListeners() {
         binding.toolbar.setNavigationOnClickListener {
             findNavController().popBackStack()
@@ -203,16 +181,6 @@ class PortfolioFragment : Fragment() {
                 R.id.action_add_cash -> {
                     viewModel.prepareNewCashTransaction()
                     findNavController().navigate(R.id.action_portfolioFragment_to_cashTransactionFragment)
-                    true
-                }
-                R.id.action_export_db -> {
-                    val date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-                    val defaultName = "stock_tracker_backup_$date.db"
-                    exportDbLauncher.launch(defaultName)
-                    true
-                }
-                R.id.action_import_db -> {
-                    importDbLauncher.launch(arrayOf("application/octet-stream"))
                     true
                 }
                 else -> false
@@ -251,14 +219,6 @@ class PortfolioFragment : Fragment() {
                 dialog.cancel()
             }
             .show()
-    }
-
-    private fun reStartApp() {
-        val intent = Intent(requireContext(), MainActivity::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        startActivity(intent)
-        finishAffinity(requireActivity())
-
     }
 
     override fun onDestroyView() {

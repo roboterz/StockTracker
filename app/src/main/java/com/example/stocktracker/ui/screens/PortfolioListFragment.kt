@@ -1,12 +1,18 @@
 package com.example.stocktracker.ui.screens
 
+import android.content.Intent
 import android.graphics.Canvas
+import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
+import android.widget.Toast
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
+import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -15,12 +21,16 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
+import com.example.stocktracker.MainActivity
 import com.example.stocktracker.R
 import com.example.stocktracker.data.PortfolioSummary
 import com.example.stocktracker.databinding.FragmentPortfolioListBinding
 import com.example.stocktracker.ui.PortfolioListAdapter
 import com.example.stocktracker.ui.viewmodel.PortfolioListViewModel
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 class PortfolioListFragment : Fragment() {
 
@@ -28,6 +38,29 @@ class PortfolioListFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val viewModel: PortfolioListViewModel by viewModels()
+
+    private lateinit var exportDbLauncher: ActivityResultLauncher<String>
+    private lateinit var importDbLauncher: ActivityResultLauncher<Array<String>>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setupDbLaunchers()
+    }
+
+    private fun setupDbLaunchers() {
+        exportDbLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri: Uri? ->
+            uri?.let {
+                viewModel.exportDatabase(it)
+            }
+        }
+
+        importDbLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri?.let {
+                viewModel.importDatabase(it)
+                reStartApp()
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -74,6 +107,23 @@ class PortfolioListFragment : Fragment() {
             showAddPortfolioDialog()
         }
 
+        binding.toolbar.inflateMenu(R.menu.portfolio_list_menu)
+        binding.toolbar.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.action_export_db -> {
+                    val date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+                    val defaultName = "stock_tracker_backup_$date.db"
+                    exportDbLauncher.launch(defaultName)
+                    true
+                }
+                R.id.action_import_db -> {
+                    importDbLauncher.launch(arrayOf("application/octet-stream"))
+                    true
+                }
+                else -> false
+            }
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch {
@@ -84,6 +134,11 @@ class PortfolioListFragment : Fragment() {
                 launch {
                     viewModel.isRefreshing.collect { isRefreshing ->
                         binding.swipeRefreshLayout.isRefreshing = isRefreshing
+                    }
+                }
+                launch {
+                    viewModel.toastEvents.collectLatest { message ->
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -110,6 +165,13 @@ class PortfolioListFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    private fun reStartApp() {
+        val intent = Intent(requireContext(), MainActivity::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        startActivity(intent)
+        finishAffinity(requireActivity())
     }
 
     private fun showDeleteConfirmationDialog(summary: PortfolioSummary) {

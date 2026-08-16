@@ -793,45 +793,6 @@ class StockViewModel(application: Application, private val portfolioId: String) 
     }
 
 
-    fun exportDatabase(targetUri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                StockDatabase.runCheckpoint(appContext)
-
-                val filesCopied = StockDatabase.exportDatabase(appContext, targetUri)
-                if (filesCopied > 0) {
-                    _toastEvents.emit("数据库备份成功！文件已保存。")
-                } else {
-                    _toastEvents.emit("备份失败：未找到主数据库文件。")
-                }
-            } catch (e: Exception) {
-                Log.e("StockViewModel", "Database export failed", e)
-                _toastEvents.emit("备份失败：${e.localizedMessage}")
-            }
-        }
-    }
-
-    fun importDatabase(sourceUri: Uri) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                _uiState.update { it.copy(isRefreshing = true) }
-                val filesCopied = StockDatabase.importDatabase(appContext, sourceUri)
-
-                if (filesCopied > 0) {
-                    _priceDataFlow.update { emptyMap() }
-                    _toastEvents.emit("数据库恢复成功！正在重新加载数据...")
-                    refreshData()
-                } else {
-                    _toastEvents.emit("恢复失败：未找到备份文件或文件内容为空。")
-                }
-            } catch (e: Exception) {
-                Log.e("StockViewModel", "Database import failed", e)
-                _toastEvents.emit("恢复失败：${e.localizedMessage}")
-            } finally {
-                _uiState.update { it.copy(isRefreshing = false) }
-            }
-        }
-    }
 }
 
 class StockViewModelFactory(private val application: Application, private val portfolioId: String) : ViewModelProvider.Factory {
