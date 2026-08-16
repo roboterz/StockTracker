@@ -63,9 +63,12 @@ class AddOrEditTransactionFragment : Fragment() {
 
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
 
-            binding.addStockActivity.updatePadding(top = systemBars.top)
-            binding.addStockActivity.updatePadding(bottom = systemBars.bottom)
+            binding.addStockActivity.updatePadding(
+                top = systemBars.top,
+                bottom = Math.max(systemBars.bottom, ime.bottom)
+            )
 
             insets
         }

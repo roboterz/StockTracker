@@ -82,6 +82,13 @@ class PortfolioListFragment : Fragment() {
             binding.appBarLayout.updatePadding(top = systemBars.top)
             // 为 RecyclerView 增加底部填充，避开导航栏
             binding.recyclerViewPortfolios.updatePadding(bottom = systemBars.bottom)
+            
+            // 为 FAB 增加底部 Margin，避开导航栏
+            val layoutParams = binding.fabAddPortfolio.layoutParams as ViewGroup.MarginLayoutParams
+            val baseMargin = resources.getDimensionPixelSize(R.dimen.fab_margin)
+            layoutParams.bottomMargin = baseMargin + systemBars.bottom
+            binding.fabAddPortfolio.layoutParams = layoutParams
+            
             insets
         }
 

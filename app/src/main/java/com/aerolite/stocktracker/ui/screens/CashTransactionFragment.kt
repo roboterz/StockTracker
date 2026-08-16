@@ -58,7 +58,11 @@ class CashTransactionFragment : Fragment() {
 
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            binding.cashTransactionLayout.updatePadding(top = systemBars.top, bottom = systemBars.bottom)
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            binding.cashTransactionLayout.updatePadding(
+                top = systemBars.top, 
+                bottom = Math.max(systemBars.bottom, ime.bottom)
+            )
             insets
         }
 
