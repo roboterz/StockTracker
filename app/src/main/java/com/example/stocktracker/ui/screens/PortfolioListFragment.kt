@@ -13,6 +13,9 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.core.app.ActivityCompat.finishAffinity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
@@ -72,6 +75,15 @@ class PortfolioListFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            // 为 AppBarLayout 增加顶部填充，避开状态栏
+            binding.appBarLayout.updatePadding(top = systemBars.top)
+            // 为 RecyclerView 增加底部填充，避开导航栏
+            binding.recyclerViewPortfolios.updatePadding(bottom = systemBars.bottom)
+            insets
+        }
 
         val adapter = PortfolioListAdapter(
             onPortfolioClick = { summary ->
