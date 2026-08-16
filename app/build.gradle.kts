@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.stocktracker"
+    namespace = "com.aerolite.stocktracker"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.stocktracker"
+        applicationId = "com.aerolite.stocktracker"
         minSdk = 29
         targetSdk = 36
         versionCode = 1

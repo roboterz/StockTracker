@@ -7,7 +7,7 @@
 
     <fragment
         android:id="@+id/portfolioListFragment"
-        android:name="com.example.stocktracker.ui.screens.PortfolioListFragment"
+        android:name="com.aerolite.stocktracker.ui.screens.PortfolioListFragment"
         android:label="Portfolios"
         tools:layout="@layout/fragment_portfolio_list">
         <action
@@ -28,7 +28,7 @@
 
         <fragment
             android:id="@+id/portfolioFragment"
-            android:name="com.example.stocktracker.ui.screens.PortfolioFragment"
+            android:name="com.aerolite.stocktracker.ui.screens.PortfolioFragment"
             android:label="Portfolio"
             tools:layout="@layout/fragment_portfolio">
             <action
@@ -44,7 +44,7 @@
 
         <fragment
             android:id="@+id/stockDetailFragment"
-            android:name="com.example.stocktracker.ui.screens.StockDetailFragment"
+            android:name="com.aerolite.stocktracker.ui.screens.StockDetailFragment"
             android:label="Stock Details"
             tools:layout="@layout/fragment_stock_detail">
             <action
@@ -54,13 +54,13 @@
 
         <fragment
             android:id="@+id/addOrEditTransactionFragment"
-            android:name="com.example.stocktracker.ui.screens.AddOrEditTransactionFragment"
+            android:name="com.aerolite.stocktracker.ui.screens.AddOrEditTransactionFragment"
             android:label="Add/Edit Transaction"
             tools:layout="@layout/fragment_add_or_edit_transaction" />
 
         <fragment
             android:id="@+id/cashTransactionFragment"
-            android:name="com.example.stocktracker.ui.screens.CashTransactionFragment"
+            android:name="com.aerolite.stocktracker.ui.screens.CashTransactionFragment"
             android:label="fragment_cash_transaction"
             tools:layout="@layout/fragment_cash_transaction" />
     </navigation>

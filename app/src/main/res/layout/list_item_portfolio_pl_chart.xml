@@ -107,7 +107,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <com.example.stocktracker.ui.components.LineChartView
+        <com.aerolite.stocktracker.ui.components.LineChartView
             android:id="@+id/pl_line_chart"
             android:layout_width="0dp"
             android:layout_height="150dp"
